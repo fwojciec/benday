@@ -8,10 +8,12 @@ use benday_core::{render, spec::Spec, theme, BarStyle, Marker, RenderOptions};
 
 const EXAMPLES: &str = r#"Examples:
   echo '{"data":{"values":[{"m":"jan","v":3},{"m":"feb","v":7}]},"mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}' | benday
+  query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}'   # rows on stdin
   benday --spec-file chart.json --marker octant --theme lichtenstein
 
 Spec (a strict Vega-Lite subset):
-  { "data": { "values": [ {..row..}, ... ] },
+  { "data"?: { "values": [ {..row..}, ... ] },        // optional; omit to pipe rows on stdin
+    //         or columnar: { "columns": [ {"name":str,"type"?:str} ], "rows": [ [..], ... ] }
     "mark": "bar" | "line" | "point" | "area",
     "encoding": {
       "x": { "field": str, "type"?: "quantitative"|"nominal"|"ordinal" },
@@ -19,6 +21,9 @@ Spec (a strict Vega-Lite subset):
       "color"?: { "field": str }
     },
     "title"?: str, "width"?: cells, "height"?: cells }
+
+Stdin: with --spec/--spec-file, stdin carries the data (a columnar envelope or
+  a JSON array of row objects); with no spec flag, stdin is the spec itself.
 
 Exit codes: 0 ok, 2 invalid spec, 3 data does not fit the encoding.
 "#;

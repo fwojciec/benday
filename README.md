@@ -15,12 +15,14 @@ the missing renderer: pipe rows and a tiny spec in, get a chart in the
 transcript.
 
 ```sh
-echo '{
-  "data": { "values": [ {"day":"mon","n":32}, {"day":"tue","n":78}, {"day":"wed","n":51} ] },
-  "mark": "bar",
-  "encoding": { "x": {"field":"day"}, "y": {"field":"n"} }
-}' | benday
+# rows from a query engine on stdin, a tiny spec via --spec
+echo '{"columns":[{"name":"day","type":"STRING"},{"name":"n","type":"INT64"}],
+       "rows":[["mon",32],["tue",78],["wed",51]]}' \
+  | benday --spec '{"mark":"bar","encoding":{"x":{"field":"day"},"y":{"field":"n"}}}'
 ```
+
+The spec can also carry its data inline and be piped on its own — see
+[Data on stdin](#data-on-stdin) for both flows.
 
 ## The spec
 
@@ -28,7 +30,10 @@ A strict subset of Vega-Lite:
 
 ```jsonc
 {
-  "data": { "values": [ /* one JSON object per row */ ] },
+  "data"?: {                                   // optional — omit to pipe rows in
+    "values": [ /* one JSON object per row */ ]           // tidy rows, OR
+    // "columns": [ {"name":"day","type":"STRING"} ], "rows": [ ["mon",32] ]  // columnar
+  },
   "mark": "bar" | "line" | "point" | "area",
   "encoding": {
     "x":      { "field": "...", "type"?: "quantitative" | "nominal" | "ordinal" },
@@ -44,6 +49,37 @@ braille|octant`, `--bar-style dots|blocks`, `--theme
 benday|lichtenstein|rotogravure`, `--width/--height`, `--no-color`,
 `--meta`. Exit codes: `0` ok, `2` invalid spec, `3` data doesn't fit the
 encoding; errors are JSON on stderr.
+
+## Data on stdin
+
+The tool is built to sit at the end of a pipe: a query engine emits rows,
+benday draws them. When the spec arrives via `--spec` or `--spec-file`, stdin
+carries the **data** instead — so `spec.data` becomes optional. (With no spec
+flag, stdin is the spec, exactly as before.)
+
+Two stdin shapes are accepted, auto-detected by structure:
+
+- **Columnar envelope** — `{"columns": [...], "rows": [[...]]}`, the shape an
+  MCP query tool emits as `structuredContent`. Unknown keys (a `query`
+  provenance block, etc.) are ignored, so `structuredContent` pipes straight
+  in; the envelope's `truncated` and `total_rows` flow through to `--meta`.
+- **Bare array of row objects** — `[{"day":"mon","n":32}, ...]`.
+
+A declared `columns[].type` (case-insensitive, BigQuery and common SQL
+spellings) beats type inference exactly where numeric-looking codes and
+string-encoded dates would otherwise fool it: `INT64`/`FLOAT64`/`NUMERIC`/…
+map to quantitative; `DATE`/`DATETIME`/`TIMESTAMP`/`TIME` map to ordinal for
+now (ISO strings sort chronologically — real temporal scales are next cycle);
+anything else, including unrecognized type names, falls back to nominal.
+Resolution precedence is strict: an explicit spec `"type"` beats a declared
+column type beats inference — the spec is the caller's stated intent and
+always wins.
+
+With `--meta`, piped data adds a `data` block reporting `source`, `truncated`,
+and `total_rows` — provenance the caller can't otherwise see. Inline data
+emits no such block (it's the caller's own bytes). The reasoning behind this
+spec/data split lives in
+[docs/plans/2026-07-04-stdin-data-design.md](docs/plans/2026-07-04-stdin-data-design.md).
 
 ## Tradeoffs
 
@@ -72,7 +108,7 @@ an agent rendering charts for the human reading its transcript.
 
 ## Architecture
 
-benday is a two-stage pipeline. `compile(spec, opts) -> Scene` resolves every
+benday is a two-stage pipeline. `compile(spec, &table, opts) -> Scene` resolves every
 data- and layout-dependent decision — scale domains, ticks, resolved series
 colors, normalized bar/point/line geometry — into a serializable `Scene` IR.
 `rasterize(scene, opts) -> Rendered` then maps that normalized geometry to
