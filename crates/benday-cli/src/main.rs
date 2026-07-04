@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, ValueEnum};
 
+use benday_core::ingest::{self, DataDoc};
 use benday_core::{render, spec::Spec, theme, BarStyle, Marker, RenderOptions};
 
 const EXAMPLES: &str = r#"Examples:
@@ -108,14 +109,47 @@ fn fail(kind: &str, message: &str, code: u8) -> ExitCode {
     ExitCode::from(code)
 }
 
+/// Parse a spec source string, formatting serde_path_to_error's path-precise
+/// error the way the CLI has always surfaced it.
+fn parse_spec(source: &str) -> Result<Spec, String> {
+    let mut de = serde_json::Deserializer::from_str(source);
+    serde_path_to_error::deserialize(&mut de).map_err(|e| {
+        let path = e.path().to_string();
+        let loc = if path == "." {
+            String::new()
+        } else {
+            format!("at `{path}`: ")
+        };
+        format!(
+            "{loc}{}; run `benday --help` for the supported spec shape",
+            e.inner()
+        )
+    })
+}
+
+/// Heuristic for the "forgot --spec" case: stdin was supposed to be a spec but
+/// smells like a piped data document — a bare array, or an object carrying
+/// `columns`/`rows` yet no `mark`.
+fn looks_like_data(source: &str) -> bool {
+    match serde_json::from_str::<serde_json::Value>(source) {
+        Ok(serde_json::Value::Array(_)) => true,
+        Ok(serde_json::Value::Object(map)) => {
+            (map.contains_key("columns") || map.contains_key("rows")) && !map.contains_key("mark")
+        }
+        _ => false,
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let source = if let Some(s) = &cli.spec {
-        s.clone()
+    // stdin's role is decided by where the spec came from: a --spec/--spec-file
+    // flag means stdin carries the DATA document; otherwise stdin IS the spec.
+    let (source, spec_from_flag) = if let Some(s) = &cli.spec {
+        (s.clone(), true)
     } else if let Some(path) = &cli.spec_file {
         match std::fs::read_to_string(path) {
-            Ok(s) => s,
+            Ok(s) => (s, true),
             Err(e) => return fail("spec", &format!("cannot read {}: {e}", path.display()), 2),
         }
     } else if std::io::stdin().is_terminal() {
@@ -129,28 +163,43 @@ fn main() -> ExitCode {
         if let Err(e) = std::io::stdin().read_to_string(&mut s) {
             return fail("spec", &format!("cannot read stdin: {e}"), 2);
         }
-        s
+        (s, false)
     };
 
-    let mut de = serde_json::Deserializer::from_str(&source);
-    let spec: Spec = match serde_path_to_error::deserialize(&mut de) {
+    let spec: Spec = match parse_spec(&source) {
         Ok(s) => s,
-        Err(e) => {
-            let path = e.path().to_string();
-            let loc = if path == "." {
-                String::new()
-            } else {
-                format!("at `{path}`: ")
-            };
-            return fail(
-                "spec",
-                &format!(
-                    "{loc}{}; run `benday --help` for the supported spec shape",
-                    e.inner()
-                ),
-                2,
-            );
+        Err(msg) => {
+            // No spec flag means stdin was meant to be the spec; if it instead
+            // looks like a data document, the user likely forgot --spec.
+            if !spec_from_flag && looks_like_data(&source) {
+                return fail(
+                    "spec",
+                    "stdin looks like a data document, not a spec; pass the spec via \
+                     --spec '...' and keep the data on stdin",
+                    2,
+                );
+            }
+            return fail("spec", &msg, 2);
         }
+    };
+
+    // When the spec came from a flag, stdin (if any, and non-empty) is a data
+    // document. Not read at all when stdin was already consumed as the spec.
+    let stdin_doc: Option<DataDoc> = if spec_from_flag && !std::io::stdin().is_terminal() {
+        let mut s = String::new();
+        if let Err(e) = std::io::stdin().read_to_string(&mut s) {
+            return fail("data", &format!("cannot read stdin: {e}"), 3);
+        }
+        if s.trim().is_empty() {
+            None
+        } else {
+            match ingest::parse_data_doc(&s) {
+                Ok(doc) => Some(doc),
+                Err(e) => return fail(e.kind(), &e.to_string(), 3),
+            }
+        }
+    } else {
+        None
     };
 
     let Some(theme) = theme::by_name(&cli.theme) else {
@@ -171,8 +220,7 @@ fn main() -> ExitCode {
             height: cli.height,
             theme,
         };
-        // Real stdin data routing is Task 5; resolve with no piped document.
-        let scene = benday_core::ingest::resolve(&spec, None)
+        let scene = ingest::resolve(&spec, stdin_doc)
             .and_then(|table| benday_core::compile::compile(&spec, &table, &copts));
         return match scene {
             Ok(scene) => {
@@ -195,7 +243,7 @@ fn main() -> ExitCode {
         color: !cli.no_color,
     };
 
-    match render(&spec, None, &opts) {
+    match render(&spec, stdin_doc, &opts) {
         Ok(out) => {
             print!("{}", out.text);
             if cli.meta {
