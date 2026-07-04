@@ -53,15 +53,18 @@ pub fn rasterize(scene: &Scene, opts: &RasterOptions) -> Rendered {
         buf.text(gutter.saturating_sub(len), tick.row, &tick.label, axis);
     }
 
-    for mark in &scene.marks {
-        match mark {
-            SceneMark::Bars { bars } => {
-                rasterize_bars(&mut buf, bars, opts, gutter, top, plot_w, plot_h);
-            }
-            SceneMark::Path { .. } | SceneMark::Points { .. } | SceneMark::Fill { .. } => {
-                todo!("xy marks rasterize in Task 5")
+    // Bars draw straight to the buffer. XY marks (line/point/area) all share a
+    // single pixel canvas so overlapping sub-pixels in the same cell merge into
+    // one glyph — matching the pre-refactor single-canvas draw — then blit once.
+    match scene.marks.first() {
+        Some(SceneMark::Bars { .. }) => {
+            for mark in &scene.marks {
+                if let SceneMark::Bars { bars } = mark {
+                    rasterize_bars(&mut buf, bars, opts, gutter, top, plot_w, plot_h);
+                }
             }
         }
+        _ => rasterize_xy(&mut buf, &scene.marks, opts, gutter, top, plot_w, plot_h),
     }
 
     // X axis: baseline, category/quantitative tick glyphs, then labels.
@@ -135,6 +138,85 @@ fn rasterize_bars(
                         buf.set(gutter + 1 + x0 + c, top + r, ch, Some(bar.color));
                     }
                 }
+            }
+        }
+    }
+}
+
+/// Rasterize line/point/area marks into one shared pixel canvas, then blit it
+/// into the plot area. A mark point is `[frac_x, frac_y]`; frac_y was already
+/// flipped by the compiler (0 = top), so both axes map the same way:
+/// `px = round(frac_x * (pixel_w - 1))`, `py = round(frac_y * (pixel_h - 1))`.
+/// The grid is 2×4 pixels per cell for braille AND octant markers alike.
+fn rasterize_xy(
+    buf: &mut Buffer,
+    marks: &[SceneMark],
+    opts: &RasterOptions,
+    gutter: usize,
+    top: usize,
+    plot_w: usize,
+    plot_h: usize,
+) {
+    let mut canvas = PixelCanvas::new(plot_w, plot_h, opts.marker);
+    let (pw, ph) = (canvas.pixel_width() as i64, canvas.pixel_height() as i64);
+    let px = |fx: f64| (fx * (pw - 1) as f64).round() as i64;
+    let py = |fy: f64| (fy * (ph - 1) as f64).round() as i64;
+
+    for mark in marks {
+        let (series, points, fill, points_mark) = match mark {
+            SceneMark::Points { series, points } => (series, points, false, true),
+            SceneMark::Path { series, points } => (series, points, false, false),
+            SceneMark::Fill { series, points } => (series, points, true, false),
+            SceneMark::Bars { .. } => continue,
+        };
+        let color = series.color;
+
+        if points_mark {
+            // 2×2 dot square centred on each pixel.
+            for p in points {
+                let (cx, cy) = (px(p[0]), py(p[1]));
+                for dx in 0..2 {
+                    for dy in 0..2 {
+                        canvas.set(cx + dx, cy + dy, color);
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Area fill first: per column, interpolate the top edge and fill down
+        // to the pixel-grid bottom, so the line lands on top of the fill.
+        if fill {
+            for w in points.windows(2) {
+                let (x0, y0, x1, y1) = (px(w[0][0]), py(w[0][1]), px(w[1][0]), py(w[1][1]));
+                for x in x0..=x1 {
+                    let t = if x1 == x0 {
+                        0.0
+                    } else {
+                        (x - x0) as f64 / (x1 - x0) as f64
+                    };
+                    let ytop = (y0 as f64 + t * (y1 - y0) as f64).round() as i64;
+                    for yy in ytop..ph {
+                        canvas.set(x, yy, color);
+                    }
+                }
+            }
+        }
+        // A lone point has no window to draw; stamp two horizontal dots.
+        if points.len() == 1 {
+            let (cx, cy) = (px(points[0][0]), py(points[0][1]));
+            canvas.set(cx, cy, color);
+            canvas.set(cx + 1, cy, color);
+        }
+        for w in points.windows(2) {
+            canvas.line(px(w[0][0]), py(w[0][1]), px(w[1][0]), py(w[1][1]), color);
+        }
+    }
+
+    for cy in 0..plot_h {
+        for cx in 0..plot_w {
+            if let Some((ch, color)) = canvas.cell(cx, cy) {
+                buf.set(gutter + 1 + cx, top + cy, ch, Some(color));
             }
         }
     }

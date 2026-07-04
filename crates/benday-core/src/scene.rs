@@ -146,9 +146,8 @@ impl Scene {
     }
 
     /// The --meta payload. Must reproduce the pre-refactor format exactly.
-    // Bars land in Task 4; xy marks follow in Task 5. `clippy::todo` is
-    // allow-by-default and the `clippy::panic` ratchet does not cover `todo!`,
-    // so no allow is needed for the unfinished arm.
+    /// Keys serialize alphabetically (serde_json's default map ordering), so
+    /// the order they appear in each `json!` block is irrelevant.
     pub fn meta(&self) -> serde_json::Value {
         let size = json!({ "columns": self.size.columns, "rows": self.size.rows });
         match self.source.mark {
@@ -168,7 +167,45 @@ impl Scene {
                 "size": size,
             }),
             Mark::Line | Mark::Point | Mark::Area => {
-                todo!("xy meta implemented in Task 5 per mark type")
+                // x type/domain: nominal reports its category list, quantitative
+                // its numeric [min, max]. Series (name/color/count) come from the
+                // marks, in first-seen order.
+                let (x_type, x_domain) = match &self.x_axis.categories {
+                    Some(cats) => ("nominal", json!(cats)),
+                    None => ("quantitative", json!(self.x_axis.domain)),
+                };
+                let series: Vec<serde_json::Value> = self
+                    .marks
+                    .iter()
+                    .filter_map(|m| {
+                        let (sref, count) = match m {
+                            SceneMark::Path { series, points }
+                            | SceneMark::Points { series, points }
+                            | SceneMark::Fill { series, points } => (series, points.len()),
+                            SceneMark::Bars { .. } => return None,
+                        };
+                        Some(json!({
+                            "name": sref.name.clone().unwrap_or_default(),
+                            "color": sref.color.hex(),
+                            "points": count,
+                        }))
+                    })
+                    .collect();
+                json!({
+                    "mark": self.source.mark,
+                    "x": {
+                        "field": self.source.x_field,
+                        "type": x_type,
+                        "domain": x_domain,
+                    },
+                    "y": {
+                        "field": self.source.y_field,
+                        "domain": self.y_axis.domain,
+                    },
+                    "series": series,
+                    "dropped_rows": self.dropped_rows,
+                    "size": size,
+                })
             }
         }
     }

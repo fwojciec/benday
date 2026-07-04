@@ -27,14 +27,6 @@ impl Buffer {
         }
     }
 
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
     pub fn set(&mut self, x: usize, y: usize, ch: char, fg: Option<Rgb>) {
         if x < self.width && y < self.height {
             self.cells[y * self.width + x] = Cell { ch, fg };
