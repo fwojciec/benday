@@ -9,6 +9,7 @@ mod ansi;
 pub mod compile;
 mod data;
 pub mod error;
+pub mod ingest;
 mod raster;
 mod render;
 mod scale;
