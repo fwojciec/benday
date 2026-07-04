@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), warn(clippy::unwrap_used, clippy::panic))]
 //! benday-core: terminal charts from a Vega-Lite-style JSON spec.
 //!
 //! Pure spec-in, string-out — no I/O, no TTY detection, no environment

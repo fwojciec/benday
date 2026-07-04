@@ -113,7 +113,7 @@ fn braille_char(bits: u8) -> char {
             }
         }
     }
-    char::from_u32(0x2800 + u32::from(v)).unwrap()
+    char::from_u32(0x2800 + u32::from(v)).expect("U+2800..=U+28FF are valid chars")
 }
 
 /// Octant glyphs indexed by row-major bit pattern.
