@@ -63,6 +63,11 @@ struct Cli {
     /// Print render metadata JSON (domains, series colors, dropped rows) to stderr
     #[arg(long)]
     meta: bool,
+
+    /// Print the compiled scene as JSON instead of rendering (UNSTABLE:
+    /// debugging interface, format changes without notice)
+    #[arg(long)]
+    dump_scene: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -159,6 +164,24 @@ fn main() -> ExitCode {
             2,
         );
     };
+
+    if cli.dump_scene {
+        let copts = benday_core::compile::CompileOptions {
+            width: cli.width,
+            height: cli.height,
+            theme,
+        };
+        return match benday_core::compile::compile(&spec, &copts) {
+            Ok(scene) => {
+                println!("{}", scene.to_json());
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                let code = if e.kind() == "spec" { 2 } else { 3 };
+                fail(e.kind(), &e.to_string(), code)
+            }
+        };
+    }
 
     let opts = RenderOptions {
         width: cli.width,

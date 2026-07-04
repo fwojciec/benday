@@ -1,0 +1,1 @@
+{"data":{"values":[{"m":1,"v":3},{"m":2,"v":5}]},"mark":"bar","encoding":{"x":{"field":"m","type":"quantitative"},"y":{"field":"v"}}}

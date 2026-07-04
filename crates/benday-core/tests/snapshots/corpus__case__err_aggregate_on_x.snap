@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `aggregate` on encoding.x is not supported; aggregation runs over y, grouped by x

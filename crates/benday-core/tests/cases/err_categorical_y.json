@@ -1,0 +1,1 @@
+{"data":{"values":[{"x":1,"y":"low"},{"x":2,"y":"high"},{"x":3,"y":"medium"}]},"mark":"line","encoding":{"x":{"field":"x"},"y":{"field":"y"}}}

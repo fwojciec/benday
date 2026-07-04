@@ -1,0 +1,1 @@
+{"data":{"values":[{"g":"a","v":1},{"g":"a","v":3},{"g":"a","v":8},{"g":"b","v":10},{"g":"b","v":20}]},"mark":"bar","encoding":{"x":{"field":"g"},"y":{"field":"v","aggregate":"median"}}}

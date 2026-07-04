@@ -1,0 +1,1 @@
+{"data":{"values":[{"x":0,"y":-20},{"x":1,"y":15},{"x":2,"y":-5},{"x":3,"y":30}]},"mark":"line","encoding":{"x":{"field":"x"},"y":{"field":"y"}}}

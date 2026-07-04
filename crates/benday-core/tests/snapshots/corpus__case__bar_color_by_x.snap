@@ -1,0 +1,131 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 63,
+    "rows": 12
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 60,
+    "h": 10
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      10.0
+    ],
+    "step": 2.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 9
+      },
+      {
+        "value": 2.0,
+        "frac": 0.2,
+        "label": "2",
+        "row": 7
+      },
+      {
+        "value": 4.0,
+        "frac": 0.4,
+        "label": "4",
+        "row": 5
+      },
+      {
+        "value": 6.0,
+        "frac": 0.6,
+        "label": "6",
+        "row": 4
+      },
+      {
+        "value": 8.0,
+        "frac": 0.8,
+        "label": "8",
+        "row": 2
+      },
+      {
+        "value": 10.0,
+        "frac": 1.0,
+        "label": "10",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "a",
+      "b",
+      "c"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "a",
+        "col": 13,
+        "row": 11
+      },
+      {
+        "text": "b",
+        "col": 33,
+        "row": 11
+      },
+      {
+        "text": "c",
+        "col": 53,
+        "row": 11
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.05,
+            "w": 0.23333333333333334,
+            "h": 0.4,
+            "color": "#55c4fe"
+          },
+          {
+            "x0": 0.38333333333333336,
+            "w": 0.23333333333333334,
+            "h": 0.9,
+            "color": "#6cd092"
+          },
+          {
+            "x0": 0.7166666666666667,
+            "w": 0.23333333333333334,
+            "h": 0.6,
+            "color": "#eca851"
+          }
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "m",
+    "y_field": "v",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1
+    ]
+  }
+}

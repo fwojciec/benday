@@ -1,0 +1,172 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 63,
+    "rows": 13
+  },
+  "plot": {
+    "x": 3,
+    "y": 1,
+    "w": 60,
+    "h": 10
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [
+    {
+      "name": "west",
+      "color": "#55c4fe",
+      "col": 3,
+      "row": 0
+    },
+    {
+      "name": "east",
+      "color": "#6cd092",
+      "col": 13,
+      "row": 0
+    }
+  ],
+  "y_axis": {
+    "domain": [
+      6.0,
+      14.0
+    ],
+    "step": 2.0,
+    "ticks": [
+      {
+        "value": 6.0,
+        "frac": 0.0,
+        "label": "6",
+        "row": 10
+      },
+      {
+        "value": 8.0,
+        "frac": 0.25,
+        "label": "8",
+        "row": 8
+      },
+      {
+        "value": 10.0,
+        "frac": 0.5,
+        "label": "10",
+        "row": 6
+      },
+      {
+        "value": 12.0,
+        "frac": 0.75,
+        "label": "12",
+        "row": 3
+      },
+      {
+        "value": 14.0,
+        "frac": 1.0,
+        "label": "14",
+        "row": 1
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      1.0,
+      3.0
+    ],
+    "tick_cols": [
+      0,
+      15,
+      30,
+      44,
+      59
+    ],
+    "labels": [
+      {
+        "text": "1.0",
+        "col": 2,
+        "row": 12
+      },
+      {
+        "text": "1.5",
+        "col": 17,
+        "row": 12
+      },
+      {
+        "text": "2.0",
+        "col": 32,
+        "row": 12
+      },
+      {
+        "text": "2.5",
+        "col": 46,
+        "row": 12
+      },
+      {
+        "text": "3.0",
+        "col": 60,
+        "row": 12
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Path": {
+        "series": {
+          "name": "west",
+          "color": "#55c4fe"
+        },
+        "points": [
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.5,
+            0.0
+          ],
+          [
+            1.0,
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "Path": {
+        "series": {
+          "name": "east",
+          "color": "#6cd092"
+        },
+        "points": [
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.5,
+            0.625
+          ],
+          [
+            1.0,
+            0.875
+          ]
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "line",
+    "x_field": "m",
+    "y_field": "v",
+    "aggregate": null,
+    "series_points": [
+      3,
+      3
+    ]
+  }
+}

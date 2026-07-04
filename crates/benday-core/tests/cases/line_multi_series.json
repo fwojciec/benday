@@ -1,0 +1,1 @@
+{"data":{"values":[{"m":1,"v":10,"r":"west"},{"m":2,"v":14,"r":"west"},{"m":3,"v":12,"r":"west"},{"m":1,"v":6,"r":"east"},{"m":2,"v":9,"r":"east"},{"m":3,"v":7,"r":"east"}]},"mark":"line","encoding":{"x":{"field":"m"},"y":{"field":"v"},"color":{"field":"r"}}}

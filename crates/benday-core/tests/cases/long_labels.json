@@ -1,0 +1,1 @@
+{"data":{"values":[{"c":"extraordinarily long category name","v":4},{"c":"another very long one indeed","v":9},{"c":"short","v":2}]},"mark":"bar","encoding":{"x":{"field":"c"},"y":{"field":"v"}}}

@@ -1,0 +1,1 @@
+{"data":{"values":[{"m":"a","v":3},{"m":"b","v":5}]},"mark":"bar","encoding":{"x":{"field":"m","aggregate":"sum"},"y":{"field":"v"}}}

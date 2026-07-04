@@ -1,0 +1,106 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 63,
+    "rows": 12
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 60,
+    "h": 10
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      15.0
+    ],
+    "step": 5.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 9
+      },
+      {
+        "value": 5.0,
+        "frac": 0.3333333333333333,
+        "label": "5",
+        "row": 6
+      },
+      {
+        "value": 10.0,
+        "frac": 0.6666666666666666,
+        "label": "10",
+        "row": 3
+      },
+      {
+        "value": 15.0,
+        "frac": 1.0,
+        "label": "15",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "a",
+      "b"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "a",
+        "col": 18,
+        "row": 11
+      },
+      {
+        "text": "b",
+        "col": 48,
+        "row": 11
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.08333333333333333,
+            "w": 0.35,
+            "h": 0.2,
+            "color": "#00bfcb"
+          },
+          {
+            "x0": 0.5833333333333334,
+            "w": 0.35,
+            "h": 1.0,
+            "color": "#ffc151"
+          }
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "g",
+    "y_field": "v",
+    "aggregate": "median",
+    "series_points": [
+      3,
+      2
+    ]
+  }
+}

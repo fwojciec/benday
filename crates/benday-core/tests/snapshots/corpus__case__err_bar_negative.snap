@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): negative values are not yet supported for mark "bar"; use mark "line"

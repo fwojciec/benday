@@ -1,0 +1,1 @@
+{"data":{"values":[{"stage":"open","n":40},{"stage":"click","n":22},{"stage":"buy","n":8}]},"mark":"line","encoding":{"x":{"field":"stage"},"y":{"field":"n"}}}

@@ -1,0 +1,1 @@
+{"data":{"values":[{"k":"a"},{"k":"a"},{"k":"b"},{"k":"a"},{"k":"c"}]},"mark":"bar","encoding":{"x":{"field":"k"},"y":{"field":"k","aggregate":"count"}}}

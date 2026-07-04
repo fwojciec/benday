@@ -70,6 +70,24 @@ an agent rendering charts for the human reading its transcript.
   more reliable for agents than a protocol wrapper. The core is a pure
   library (`benday-core`, no I/O), so wrapping it later is trivial.
 
+## Testing
+
+Three layers, from semantic to pixel:
+
+- **Spec→scene corpus** (`crates/benday-core/tests/cases/*.json`) — the
+  primary regression contract. Each spec compiles to a `Scene` and the JSON
+  IR (domains, ticks, resolved colors, bar/point geometry) is snapshotted —
+  layout-aware, glyph-free.
+- **Rasterizer unit tests** — the `Scene`→glyph step in isolation.
+- **Glyph gallery** (`tests/gallery.rs`) — full rendered output for every
+  example plus adversarial specs, at two sizes.
+
+`make validate` runs fmt + clippy + the whole suite; `make snapshots` opens
+`cargo insta review`. To add a corpus case: drop a spec in `tests/cases/`,
+run the suite, review the pending snapshot, accept. To inspect a scene ad
+hoc, use `benday --dump-scene` (unstable: for debugging, format may change
+without notice).
+
 ## Install
 
 ```sh

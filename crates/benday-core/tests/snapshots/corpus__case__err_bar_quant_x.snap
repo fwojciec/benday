@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): bar marks treat x as categorical; omit encoding.x.type, or use mark "line" or "area" for a quantitative x

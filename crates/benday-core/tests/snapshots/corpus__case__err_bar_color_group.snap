@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): bar marks cannot group by color yet; encoding.color.field must equal encoding.x.field ("m") or be omitted
