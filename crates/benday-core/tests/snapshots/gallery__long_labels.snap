@@ -1,0 +1,43 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+10┤
+  │                       ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+ 8┤                       ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+  │                       ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+ 6┤                       ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+ 4┤                       ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+  │   ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+ 2┤   ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+  │   ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+ 0┤   ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+  └────────────────────────────────────────────────────────────
+    extraordinarily lo… another very long …        short
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "bar",
+  "size": {
+    "columns": 63,
+    "rows": 12
+  },
+  "x": {
+    "categories": [
+      "extraordinarily long category name",
+      "another very long one indeed",
+      "short"
+    ],
+    "field": "c",
+    "type": "nominal"
+  },
+  "y": {
+    "aggregate": "sum",
+    "domain": [
+      0.0,
+      10.0
+    ],
+    "field": "v"
+  }
+}

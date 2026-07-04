@@ -1,0 +1,44 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+            weekly signups
+100┤              ⣶⣶           ⣀⣀
+ 80┤     ⣶⣶       ⣿⣿           ⣿⣿
+ 60┤     ⣿⣿       ⣿⣿  ⣿⣿       ⣿⣿
+ 40┤     ⣿⣿   ⣿⣿  ⣿⣿  ⣿⣿   ⣶⣶  ⣿⣿
+ 20┤ ⣿⣿  ⣿⣿   ⣿⣿  ⣿⣿  ⣿⣿   ⣿⣿  ⣿⣿
+  0┤ ⣿⣿  ⣿⣿   ⣿⣿  ⣿⣿  ⣿⣿   ⣿⣿  ⣿⣿
+   └──────────────────────────────
+     mon tue  wed thu fri  sat sun
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "bar",
+  "size": {
+    "columns": 34,
+    "rows": 9
+  },
+  "x": {
+    "categories": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+    ],
+    "field": "day",
+    "type": "nominal"
+  },
+  "y": {
+    "aggregate": "sum",
+    "domain": [
+      0.0,
+      100.0
+    ],
+    "field": "signups"
+  }
+}

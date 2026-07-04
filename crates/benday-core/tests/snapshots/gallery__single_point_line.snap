@@ -1,0 +1,48 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+4.0┤
+   │
+3.8┤
+   │
+3.6┤
+3.4┤
+   │
+3.2┤
+   │
+3.0┤⣀
+   └┴───────────┴───────────┴──────────┴───────────┴───────────┴
+   5.0         5.2         5.4        5.6         5.8        6.0
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "line",
+  "series": [
+    {
+      "color": "#00d5ef",
+      "name": "",
+      "points": 1
+    }
+  ],
+  "size": {
+    "columns": 64,
+    "rows": 12
+  },
+  "x": {
+    "domain": [
+      5.0,
+      6.0
+    ],
+    "field": "x",
+    "type": "quantitative"
+  },
+  "y": {
+    "domain": [
+      3.0,
+      4.0
+    ],
+    "field": "y"
+  }
+}

@@ -1,0 +1,45 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+      latency vs payload size
+60┤                    ⢠⡄⣀
+50┤               ⣀ ⠰⠆⣤  ⠉
+40┤            ⣤⢠⡄⠉⠘⠃
+20┤        ⣤⡘⠃⠶
+10┤  ⢀⣤⢠⡜⠛ ⠈⠁
+ 0┤ ⠛⠈⠁
+  └┴─────────┴────────┴─────────┴
+   0        100      200      300
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "point",
+  "series": [
+    {
+      "color": "#00d5ef",
+      "name": "",
+      "points": 18
+    }
+  ],
+  "size": {
+    "columns": 33,
+    "rows": 9
+  },
+  "x": {
+    "domain": [
+      0.0,
+      300.0
+    ],
+    "field": "kb",
+    "type": "quantitative"
+  },
+  "y": {
+    "domain": [
+      0.0,
+      60.0
+    ],
+    "field": "ms"
+  }
+}

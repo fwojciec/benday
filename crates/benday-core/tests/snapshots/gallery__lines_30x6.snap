@@ -1,0 +1,51 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+          revenue by region
+    ── west   ── east
+220┤                      ⢀⠔
+180┤               ⢀⡠⠔⠢⠤⣀⠔⠁
+160┤           ⢀⠤⠒⠊⠁
+140┤    ⣀⡠⠤⢄⣀⡠⠊⠁       ⡠⠔⠒⠒⠒
+100┤   ⠉        ⢀⡠⠒⠉⠑⠒⠉
+ 80┤   ⠒⠢⠤⠤⠒⠊⠉⠉⠉⠁
+   └┴──────────────┴─────────────┴
+    0              5            10
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "line",
+  "series": [
+    {
+      "color": "#55c4fe",
+      "name": "west",
+      "points": 8
+    },
+    {
+      "color": "#6cd092",
+      "name": "east",
+      "points": 8
+    }
+  ],
+  "size": {
+    "columns": 34,
+    "rows": 10
+  },
+  "x": {
+    "domain": [
+      0.0,
+      10.0
+    ],
+    "field": "month",
+    "type": "quantitative"
+  },
+  "y": {
+    "domain": [
+      80.0,
+      220.0
+    ],
+    "field": "revenue"
+  }
+}

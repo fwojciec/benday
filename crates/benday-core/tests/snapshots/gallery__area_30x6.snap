@@ -1,0 +1,45 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+            queue depth
+35┤               ⢀
+25┤             ⢀⣴⣿⣷⣄
+20┤         ⣠⣦⣄⣠⣿⣿⣿⣿⣿⣷⡀
+15┤    ⡀  ⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⣄
+ 5┤⢀⣠⣴⣿⣿⣷⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣦
+ 0┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+  └┴─────────┴────────┴─────────┴
+   0         5       10        15
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "area",
+  "series": [
+    {
+      "color": "#00d5ef",
+      "name": "",
+      "points": 13
+    }
+  ],
+  "size": {
+    "columns": 33,
+    "rows": 9
+  },
+  "x": {
+    "domain": [
+      0.0,
+      15.0
+    ],
+    "field": "t",
+    "type": "quantitative"
+  },
+  "y": {
+    "domain": [
+      0.0,
+      35.0
+    ],
+    "field": "depth"
+  }
+}
