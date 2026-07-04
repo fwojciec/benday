@@ -14,6 +14,7 @@ use std::collections::HashSet;
 
 use crate::data;
 use crate::error::Error;
+use crate::ingest::{Row, Table};
 use crate::scale::{fmt_tick, Linear};
 use crate::scene::{
     Bar, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size, Source, XAxis,
@@ -46,14 +47,8 @@ pub(crate) fn plot_dims(
 /// Spec- and data-level rules the type system can't express, run before either
 /// render path. Loud by design: a silently ignored channel produces a chart
 /// the caller didn't ask for, which an agent reading dot art cannot detect.
-pub fn preflight(spec: &Spec) -> Result<(), Error> {
+pub fn preflight(spec: &Spec, rows: &[Row]) -> Result<(), Error> {
     validate(spec)?;
-    let rows = &spec.data.values;
-    if rows.is_empty() {
-        return Err(Error::Data(
-            "`data.values` is empty; provide at least one row of objects".into(),
-        ));
-    }
     data::check_field(rows, &spec.encoding.x.field)?;
     if !matches!(spec.encoding.y.aggregate, Some(Aggregate::Count)) {
         data::check_field(rows, &spec.encoding.y.field)?;
@@ -129,22 +124,23 @@ pub(crate) fn truncate(s: &str, max: usize) -> String {
 
 /// Resolve a spec into a Scene: every data- and layout-dependent decision made,
 /// geometry normalized, colors baked in. Bars and xy marks share `preflight`.
-pub fn compile(spec: &Spec, opts: &CompileOptions) -> Result<Scene, Error> {
-    preflight(spec)?;
+pub fn compile(spec: &Spec, table: &Table, opts: &CompileOptions) -> Result<Scene, Error> {
+    preflight(spec, &table.rows)?;
     let (plot_w, plot_h) = plot_dims(opts.width, opts.height, spec);
     match spec.mark {
-        Mark::Bar => compile_bar(spec, opts, plot_w, plot_h),
-        Mark::Line | Mark::Point | Mark::Area => compile_xy(spec, opts, plot_w, plot_h),
+        Mark::Bar => compile_bar(spec, table, opts, plot_w, plot_h),
+        Mark::Line | Mark::Point | Mark::Area => compile_xy(spec, table, opts, plot_w, plot_h),
     }
 }
 
 fn compile_bar(
     spec: &Spec,
+    table: &Table,
     opts: &CompileOptions,
     plot_w: usize,
     plot_h: usize,
 ) -> Result<Scene, Error> {
-    let rows = &spec.data.values;
+    let rows = &table.rows;
     let xf = &spec.encoding.x.field;
     let yf = &spec.encoding.y.field;
     let agg = spec.encoding.y.aggregate.unwrap_or(Aggregate::Sum);
@@ -312,11 +308,12 @@ struct XySeries {
 /// the module docs). One `SceneMark` per series, in first-seen order.
 fn compile_xy(
     spec: &Spec,
+    table: &Table,
     opts: &CompileOptions,
     plot_w: usize,
     plot_h: usize,
 ) -> Result<Scene, Error> {
-    let rows = &spec.data.values;
+    let rows = &table.rows;
     let xf = &spec.encoding.x.field;
     let yf = &spec.encoding.y.field;
     let theme = &opts.theme;

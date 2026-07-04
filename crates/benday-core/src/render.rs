@@ -5,6 +5,7 @@
 
 use crate::compile;
 use crate::error::Error;
+use crate::ingest::{self, DataDoc};
 use crate::raster::{self, Marker};
 use crate::spec::Spec;
 use crate::theme::Theme;
@@ -35,15 +36,17 @@ pub struct Rendered {
     pub meta: serde_json::Value,
 }
 
-pub fn render(spec: &Spec, opts: &RenderOptions) -> Result<Rendered, Error> {
-    // Every mark takes the same two steps: compile to a Scene (which owns
-    // preflight validation), then rasterize. No per-mark branching here.
+pub fn render(spec: &Spec, data: Option<DataDoc>, opts: &RenderOptions) -> Result<Rendered, Error> {
+    // Resolve the spec's inline data and/or the piped data document into a
+    // Table, then compile to a Scene (which owns preflight validation) and
+    // rasterize. No per-mark branching here.
+    let table = ingest::resolve(spec, data)?;
     let copts = compile::CompileOptions {
         width: opts.width,
         height: opts.height,
         theme: opts.theme.clone(),
     };
-    let scene = compile::compile(spec, &copts)?;
+    let scene = compile::compile(spec, &table, &copts)?;
     let ropts = raster::RasterOptions {
         marker: opts.marker,
         bar_style: opts.bar_style,
@@ -81,7 +84,7 @@ mod tests {
             r#"{"data":{"values":[{"m":"jan","v":3},{"m":"feb","v":7}]},
                 "mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}"#,
         );
-        let out = render(&s, &opts()).unwrap();
+        let out = render(&s, None, &opts()).unwrap();
         assert!(out.text.chars().any(is_braille));
         assert!(out.text.contains("jan"));
     }
@@ -94,6 +97,7 @@ mod tests {
         );
         let out = render(
             &s,
+            None,
             &RenderOptions {
                 bar_style: BarStyle::Blocks,
                 ..opts()
@@ -109,7 +113,7 @@ mod tests {
             r#"{"data":{"values":[{"x":0,"y":1},{"x":1,"y":4},{"x":2,"y":2}]},
                 "mark":"line","encoding":{"x":{"field":"x"},"y":{"field":"y"}}}"#,
         );
-        let out = render(&s, &opts()).unwrap();
+        let out = render(&s, None, &opts()).unwrap();
         assert!(out.text.chars().any(is_braille));
     }
 
@@ -119,7 +123,7 @@ mod tests {
             r#"{"data":{"values":[{"month":"jan","sales":3}]},
                 "mark":"bar","encoding":{"x":{"field":"month"},"y":{"field":"revenue"}}}"#,
         );
-        let err = render(&s, &opts()).unwrap_err();
+        let err = render(&s, None, &opts()).unwrap_err();
         let msg = err.to_string();
         assert_eq!(err.kind(), "data");
         assert!(msg.contains("revenue") && msg.contains("available fields"));
@@ -133,7 +137,7 @@ mod tests {
                 "mark":"bar",
                 "encoding":{"x":{"field":"m","aggregate":"sum"},"y":{"field":"v"}}}"#,
         );
-        let err = render(&s, &opts()).unwrap_err();
+        let err = render(&s, None, &opts()).unwrap_err();
         assert_eq!(err.kind(), "spec");
         assert!(err.to_string().contains("encoding.x"));
     }
@@ -145,7 +149,7 @@ mod tests {
                 "mark":"bar",
                 "encoding":{"x":{"field":"m"},"y":{"field":"v"},"color":{"field":"region"}}}"#,
         );
-        let err = render(&s, &opts()).unwrap_err();
+        let err = render(&s, None, &opts()).unwrap_err();
         assert_eq!(err.kind(), "spec");
         assert!(err.to_string().contains("color"));
     }

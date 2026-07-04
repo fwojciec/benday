@@ -19,7 +19,7 @@ fn opts(width: usize, height: usize) -> RenderOptions {
 }
 
 fn snap(name: &str, spec: &Spec, o: &RenderOptions) {
-    let out = render(spec, o).unwrap();
+    let out = render(spec, None, o).unwrap();
     let bundle = format!(
         "{}\n--- meta ---\n{}",
         out.text,

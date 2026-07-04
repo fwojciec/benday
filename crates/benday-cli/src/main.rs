@@ -171,7 +171,10 @@ fn main() -> ExitCode {
             height: cli.height,
             theme,
         };
-        return match benday_core::compile::compile(&spec, &copts) {
+        // Real stdin data routing is Task 5; resolve with no piped document.
+        let scene = benday_core::ingest::resolve(&spec, None)
+            .and_then(|table| benday_core::compile::compile(&spec, &table, &copts));
+        return match scene {
             Ok(scene) => {
                 println!("{}", scene.to_json());
                 ExitCode::SUCCESS
@@ -192,7 +195,7 @@ fn main() -> ExitCode {
         color: !cli.no_color,
     };
 
-    match render(&spec, &opts) {
+    match render(&spec, None, &opts) {
         Ok(out) => {
             print!("{}", out.text);
             if cli.meta {

@@ -2,4 +2,4 @@
 source: crates/benday-core/tests/corpus.rs
 expression: snapshot
 ---
-ERROR (data): `data.values` is empty; provide at least one row of objects
+ERROR (data): data has no rows; provide at least one row

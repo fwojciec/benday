@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use benday_core::compile::{compile, CompileOptions};
+use benday_core::ingest;
 use benday_core::{spec::Spec, theme};
 
 #[test]
@@ -27,7 +28,7 @@ fn corpus() {
         let stem = path.file_stem().unwrap().to_str().unwrap();
         let spec: Spec = serde_json::from_str(&fs::read_to_string(path).unwrap())
             .unwrap_or_else(|e| panic!("{stem}: case must be a parseable spec: {e}"));
-        let snapshot = match compile(&spec, &opts) {
+        let snapshot = match ingest::resolve(&spec, None).and_then(|t| compile(&spec, &t, &opts)) {
             Ok(scene) => scene.to_json(),
             Err(e) => format!("ERROR ({}): {}", e.kind(), e),
         };
