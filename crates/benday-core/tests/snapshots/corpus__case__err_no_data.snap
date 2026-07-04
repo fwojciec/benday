@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): no data: the spec has no `data` and nothing arrived on stdin; add data.values or data.columns+rows to the spec, or pipe a data document

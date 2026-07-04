@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): mark Line needs a quantitative y, but field "y" holds categorical values; put categories on x, or set encoding.y.type to "quantitative" if they are numbers

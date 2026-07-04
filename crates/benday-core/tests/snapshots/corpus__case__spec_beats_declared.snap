@@ -1,0 +1,144 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 63,
+    "rows": 12
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 60,
+    "h": 10
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      7.0,
+      12.0
+    ],
+    "step": 1.0,
+    "ticks": [
+      {
+        "value": 7.0,
+        "frac": 0.0,
+        "label": "7",
+        "row": 9
+      },
+      {
+        "value": 8.0,
+        "frac": 0.2,
+        "label": "8",
+        "row": 7
+      },
+      {
+        "value": 9.0,
+        "frac": 0.4,
+        "label": "9",
+        "row": 5
+      },
+      {
+        "value": 10.0,
+        "frac": 0.6,
+        "label": "10",
+        "row": 4
+      },
+      {
+        "value": 11.0,
+        "frac": 0.8,
+        "label": "11",
+        "row": 2
+      },
+      {
+        "value": 12.0,
+        "frac": 1.0,
+        "label": "12",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      1.0,
+      2.0
+    ],
+    "tick_cols": [
+      0,
+      12,
+      24,
+      35,
+      47,
+      59
+    ],
+    "labels": [
+      {
+        "text": "1.0",
+        "col": 2,
+        "row": 11
+      },
+      {
+        "text": "1.2",
+        "col": 14,
+        "row": 11
+      },
+      {
+        "text": "1.4",
+        "col": 26,
+        "row": 11
+      },
+      {
+        "text": "1.6",
+        "col": 37,
+        "row": 11
+      },
+      {
+        "text": "1.8",
+        "col": 49,
+        "row": 11
+      },
+      {
+        "text": "2.0",
+        "col": 60,
+        "row": 11
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Path": {
+        "series": {
+          "name": null,
+          "color": "#00d5ef"
+        },
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            1.0
+          ]
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "line",
+    "x_field": "x",
+    "y_field": "y",
+    "aggregate": null,
+    "series_points": [
+      2
+    ]
+  }
+}

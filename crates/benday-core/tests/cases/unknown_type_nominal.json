@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"region","type":"GEOGRAPHY"},{"name":"n","type":"INT64"}],"rows":[["west",10],["east",20]]},"mark":"bar","encoding":{"x":{"field":"region"},"y":{"field":"n"}}}

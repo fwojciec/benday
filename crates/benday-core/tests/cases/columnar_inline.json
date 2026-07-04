@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"day","type":"STRING"},{"name":"n","type":"INT64"}],"rows":[["mon",32],["tue",78],["wed",51]]},"mark":"bar","encoding":{"x":{"field":"day"},"y":{"field":"n"}}}

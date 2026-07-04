@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::error::Error;
-use crate::spec::{FieldType, Spec};
+use crate::spec::{Column, Data, FieldType, Spec};
 
 pub type Row = Map<String, Value>;
 
@@ -39,6 +39,15 @@ pub struct EnvColumn {
     pub name: String,
     #[serde(default, rename = "type")]
     pub ty: Option<String>,
+}
+
+impl From<&Column> for EnvColumn {
+    fn from(c: &Column) -> Self {
+        EnvColumn {
+            name: c.name.clone(),
+            ty: c.ty.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -95,33 +104,45 @@ pub fn declared_field_type(t: &str) -> FieldType {
 /// Resolve spec + optional stdin document into a Table. Owns ALL precedence
 /// and data-shape errors so the corpus can pin them.
 pub fn resolve(spec: &Spec, stdin: Option<DataDoc>) -> Result<Table, Error> {
-    // The spec-side inline data. Today `spec.data` is required-`values`, so
-    // this is always `Some`; Task 3 makes it an `Option` and adds the inline
-    // columnar form. Structured as a match now so Task 3 only touches the
-    // spec-side pattern, never the stdin arms.
-    let inline = Some(&spec.data);
-
-    match (inline, stdin) {
+    match (&spec.data, stdin) {
         (Some(_), Some(_)) => Err(Error::Spec(
             "data provided twice: the spec has inline `data` and a data document \
              arrived on stdin; remove one"
                 .into(),
         )),
-        (Some(data), None) => {
-            // Inline `values`: row-major already, no declared types.
-            finish(
-                data.values.clone(),
-                HashMap::new(),
-                DataSource::InlineValues,
-                None,
-                None,
-            )
-        }
+        (Some(data), None) => resolve_inline(data),
         (None, Some(doc)) => resolve_stdin(doc),
         (None, None) => Err(Error::Spec(
             "no data: the spec has no `data` and nothing arrived on stdin; add \
              data.values or data.columns+rows to the spec, or pipe a data document"
                 .into(),
+        )),
+    }
+}
+
+/// Resolve the spec's inline `data` object. Exactly one form is allowed:
+/// `values` (tidy row objects) or `columns` + `rows` (columnar). Any other
+/// combination is a spec error — serde can't express either/or without
+/// mangling the error paths, so it's checked here.
+fn resolve_inline(data: &Data) -> Result<Table, Error> {
+    match (&data.values, &data.columns, &data.rows) {
+        // Inline `values`: row-major already, no declared types.
+        (Some(values), None, None) => finish(
+            values.clone(),
+            HashMap::new(),
+            DataSource::InlineValues,
+            None,
+            None,
+        ),
+        (None, Some(columns), Some(rows)) => {
+            // Reuse the envelope's zip/validation. The spec's `Column` is the
+            // strict twin of `EnvColumn`; same fields, so convert and share.
+            let env: Vec<EnvColumn> = columns.iter().map(EnvColumn::from).collect();
+            let (rows, declared) = columnar_to_rows(&env, rows)?;
+            finish(rows, declared, DataSource::InlineColumns, None, None)
+        }
+        _ => Err(Error::Spec(
+            "data must contain either `values`, or `columns` and `rows`".into(),
         )),
     }
 }
@@ -357,6 +378,50 @@ mod tests {
         insta::assert_snapshot!(
             err.to_string(),
             @"data provided twice: the spec has inline `data` and a data document arrived on stdin; remove one"
+        );
+    }
+
+    #[test]
+    fn inline_columnar_resolves_with_declared_types() {
+        let spec: Spec = serde_json::from_str(
+            r#"{"data":{"columns":[{"name":"day","type":"STRING"},{"name":"n","type":"INT64"}],
+                       "rows":[["mon",32],["tue",78]]},
+                "mark":"bar","encoding":{"x":{"field":"day"},"y":{"field":"n"}}}"#,
+        )
+        .expect("inline columnar spec parses");
+        let table = resolve(&spec, None).expect("resolves");
+        assert_eq!(table.provenance.source, DataSource::InlineColumns);
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.rows[0].get("day"), Some(&json!("mon")));
+        assert_eq!(table.rows[0].get("n"), Some(&json!(32)));
+        assert_eq!(table.declared.get("day"), Some(&FieldType::Nominal));
+        assert_eq!(table.declared.get("n"), Some(&FieldType::Quantitative));
+    }
+
+    #[test]
+    fn inline_data_both_forms_errors() {
+        let spec: Spec = serde_json::from_str(
+            r#"{"data":{"values":[{"a":1}],"columns":[{"name":"a"}],"rows":[[1]]},
+                "mark":"bar","encoding":{"x":{"field":"a"},"y":{"field":"a"}}}"#,
+        )
+        .expect("spec parses");
+        let err = resolve(&spec, None).expect_err("both forms must error");
+        insta::assert_snapshot!(
+            err.to_string(),
+            @"data must contain either `values`, or `columns` and `rows`"
+        );
+    }
+
+    #[test]
+    fn no_data_anywhere_errors() {
+        let spec: Spec = serde_json::from_str(
+            r#"{"mark":"bar","encoding":{"x":{"field":"a"},"y":{"field":"b"}}}"#,
+        )
+        .expect("spec without data parses");
+        let err = resolve(&spec, None).expect_err("no data must error");
+        insta::assert_snapshot!(
+            err.to_string(),
+            @"no data: the spec has no `data` and nothing arrived on stdin; add data.values or data.columns+rows to the spec, or pipe a data document"
         );
     }
 

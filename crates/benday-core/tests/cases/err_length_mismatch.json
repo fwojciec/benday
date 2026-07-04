@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"a"},{"name":"b"},{"name":"c"}],"rows":[[1,2]]},"mark":"bar","encoding":{"x":{"field":"a"},"y":{"field":"b"}}}

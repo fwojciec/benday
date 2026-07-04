@@ -177,6 +177,23 @@ fn compile_bar(
             "no usable rows: field \"{yf}\" has no numeric values (or \"{xf}\" is always missing)"
         )));
     }
+    // Bars always treat x as categorical; the resolved x type only decides
+    // whether categories sort chronologically (ordinal DATE/TIMESTAMP or an
+    // explicit ordinal spec type). `compile_bar` is index-free — cats and
+    // groups are parallel — so sort the pairs together before aggregation.
+    let xt = spec
+        .encoding
+        .x
+        .ty
+        .or_else(|| table.declared.get(xf).copied())
+        .unwrap_or_else(|| data::infer_type(rows, xf));
+    if xt == FieldType::Ordinal {
+        let mut pairs: Vec<(String, Vec<f64>)> = cats.into_iter().zip(groups).collect();
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+        let (c, g): (Vec<String>, Vec<Vec<f64>>) = pairs.into_iter().unzip();
+        cats = c;
+        groups = g;
+    }
     let values: Vec<f64> = groups.iter().map(|g| aggregate(g, agg)).collect();
     if values.iter().any(|v| *v < 0.0) {
         return Err(Error::Data(
@@ -319,15 +336,19 @@ fn compile_xy(
     let theme = &opts.theme;
     let mark = spec.mark;
 
+    // Type resolution precedence: explicit spec type > declared column type >
+    // inference from the data.
     let xt = spec
         .encoding
         .x
         .ty
+        .or_else(|| table.declared.get(xf).copied())
         .unwrap_or_else(|| data::infer_type(rows, xf));
     let yt = spec
         .encoding
         .y
         .ty
+        .or_else(|| table.declared.get(yf).copied())
         .unwrap_or_else(|| data::infer_type(rows, yf));
     if yt != FieldType::Quantitative {
         return Err(Error::Data(format!(
@@ -393,6 +414,27 @@ fn compile_xy(
         return Err(Error::Data(format!(
             "no usable rows: could not read numeric values from \"{yf}\""
         )));
+    }
+    // Ordinal x (declared DATE/TIMESTAMP or explicit spec type) sorts its
+    // category list lexically so ISO dates plot chronologically even when rows
+    // arrive shuffled. The category indices were assigned in first-seen order
+    // DURING the scan and stored in every point, so sorting `x_cats` alone
+    // would desync labels from points — remap the points too, before the
+    // per-series sort re-orders them by x.
+    if xt == FieldType::Ordinal {
+        let mut sorted = x_cats.clone();
+        sorted.sort_unstable();
+        // old index -> new index
+        let remap: Vec<usize> = x_cats
+            .iter()
+            .map(|c| sorted.iter().position(|s| s == c).expect("same elements"))
+            .collect();
+        for s in &mut series {
+            for p in &mut s.points {
+                p.0 = remap[p.0 as usize] as f64;
+            }
+        }
+        x_cats = sorted;
     }
     for s in &mut series {
         s.points.sort_by(|a, b| a.0.total_cmp(&b.0));

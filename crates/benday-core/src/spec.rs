@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Spec {
-    pub data: Data,
+    /// Optional: rows may instead arrive on stdin. `ingest::resolve` enforces
+    /// that data is present in exactly one place.
+    #[serde(default)]
+    pub data: Option<Data>,
     pub mark: Mark,
     pub encoding: Encoding,
     #[serde(default)]
@@ -22,11 +25,29 @@ pub struct Spec {
     pub height: Option<usize>,
 }
 
+/// Inline data: tidy row objects, OR columnar `columns` + `rows`. Exactly one
+/// form — `ingest::resolve` enforces it (serde can't express either/or here
+/// without wrecking error paths).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Data {
     /// Inline tidy data: one JSON object per row.
-    pub values: Vec<serde_json::Map<String, serde_json::Value>>,
+    #[serde(default)]
+    pub values: Option<Vec<serde_json::Map<String, serde_json::Value>>>,
+    #[serde(default)]
+    pub columns: Option<Vec<Column>>,
+    #[serde(default)]
+    pub rows: Option<Vec<Vec<serde_json::Value>>>,
+}
+
+/// Strict twin of `ingest::EnvColumn`: the spec is agent-authored, so unknown
+/// keys are rejected here.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Column {
+    pub name: String,
+    #[serde(default, rename = "type")]
+    pub ty: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
