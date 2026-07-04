@@ -1,0 +1,11 @@
+[package]
+name = "benday-core"
+description = "Spec-to-chart rendering core for benday: terminal charts from a Vega-Lite-style JSON spec"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

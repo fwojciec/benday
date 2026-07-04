@@ -1,0 +1,29 @@
+{
+  "title": "revenue by region",
+  "data": {
+    "values": [
+      { "month": 1, "revenue": 120, "region": "west" },
+      { "month": 2, "revenue": 135, "region": "west" },
+      { "month": 3, "revenue": 128, "region": "west" },
+      { "month": 4, "revenue": 161, "region": "west" },
+      { "month": 5, "revenue": 174, "region": "west" },
+      { "month": 6, "revenue": 190, "region": "west" },
+      { "month": 7, "revenue": 178, "region": "west" },
+      { "month": 8, "revenue": 214, "region": "west" },
+      { "month": 1, "revenue": 90, "region": "east" },
+      { "month": 2, "revenue": 84, "region": "east" },
+      { "month": 3, "revenue": 101, "region": "east" },
+      { "month": 4, "revenue": 96, "region": "east" },
+      { "month": 5, "revenue": 122, "region": "east" },
+      { "month": 6, "revenue": 118, "region": "east" },
+      { "month": 7, "revenue": 141, "region": "east" },
+      { "month": 8, "revenue": 139, "region": "east" }
+    ]
+  },
+  "mark": "line",
+  "encoding": {
+    "x": { "field": "month" },
+    "y": { "field": "revenue" },
+    "color": { "field": "region" }
+  }
+}

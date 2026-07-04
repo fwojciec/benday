@@ -1,0 +1,19 @@
+{
+  "title": "weekly signups",
+  "data": {
+    "values": [
+      { "day": "mon", "signups": 32 },
+      { "day": "tue", "signups": 78 },
+      { "day": "wed", "signups": 51 },
+      { "day": "thu", "signups": 94 },
+      { "day": "fri", "signups": 67 },
+      { "day": "sat", "signups": 44 },
+      { "day": "sun", "signups": 89 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "day" },
+    "y": { "field": "signups" }
+  }
+}

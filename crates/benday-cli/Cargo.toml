@@ -1,0 +1,17 @@
+[package]
+name = "benday"
+description = "Crisp terminal charts from a Vega-Lite-style JSON spec, built for agents to call"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "benday"
+path = "src/main.rs"
+
+[dependencies]
+benday-core = { path = "../benday-core" }
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"
+serde_path_to_error = "0.1"
