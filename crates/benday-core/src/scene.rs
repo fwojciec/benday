@@ -5,9 +5,10 @@
 //! snapshot and the `--dump-scene` output; it is explicitly unstable.
 
 use serde::Serialize;
+use serde_json::json;
 
 use crate::raster::Rgb;
-use crate::spec::Aggregate;
+use crate::spec::{Aggregate, Mark};
 
 #[derive(Serialize)]
 pub struct Scene {
@@ -145,11 +146,31 @@ impl Scene {
     }
 
     /// The --meta payload. Must reproduce the pre-refactor format exactly.
-    // Implemented in Task 4/5, once compile()/rasterize() populate the Scene
-    // with the per-mark facts --meta reports. `clippy::todo` is allow-by-default
-    // and the `clippy::panic` ratchet does not cover `todo!`, so no allow needed.
+    // Bars land in Task 4; xy marks follow in Task 5. `clippy::todo` is
+    // allow-by-default and the `clippy::panic` ratchet does not cover `todo!`,
+    // so no allow is needed for the unfinished arm.
     pub fn meta(&self) -> serde_json::Value {
-        todo!("implemented in Task 4/5 per mark type")
+        let size = json!({ "columns": self.size.columns, "rows": self.size.rows });
+        match self.source.mark {
+            Mark::Bar => json!({
+                "mark": "bar",
+                "x": {
+                    "field": self.source.x_field,
+                    "type": "nominal",
+                    "categories": self.x_axis.categories,
+                },
+                "y": {
+                    "field": self.source.y_field,
+                    "aggregate": self.source.aggregate,
+                    "domain": self.y_axis.domain,
+                },
+                "dropped_rows": self.dropped_rows,
+                "size": size,
+            }),
+            Mark::Line | Mark::Point | Mark::Area => {
+                todo!("xy meta implemented in Task 5 per mark type")
+            }
+        }
     }
 }
 

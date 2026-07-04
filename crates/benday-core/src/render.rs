@@ -6,11 +6,12 @@ use std::collections::HashSet;
 use serde_json::json;
 
 use crate::ansi::Buffer;
+use crate::compile;
 use crate::data;
 use crate::error::Error;
-use crate::raster::{Marker, PixelCanvas, Rgb};
+use crate::raster::{self, Marker, PixelCanvas, Rgb};
 use crate::scale::{fmt_tick, Linear};
-use crate::spec::{Aggregate, FieldType, Mark, Spec};
+use crate::spec::{FieldType, Mark, Spec};
 use crate::theme::Theme;
 
 pub struct RenderOptions {
@@ -39,98 +40,31 @@ pub struct Rendered {
     pub meta: serde_json::Value,
 }
 
-const DEFAULT_WIDTH: usize = 60;
-const DEFAULT_HEIGHT: usize = 10;
-const EIGHTHS: [char; 8] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'];
-
 pub fn render(spec: &Spec, opts: &RenderOptions) -> Result<Rendered, Error> {
-    validate(spec)?;
-    let rows = &spec.data.values;
-    if rows.is_empty() {
-        return Err(Error::Data(
-            "`data.values` is empty; provide at least one row of objects".into(),
-        ));
-    }
-    data::check_field(rows, &spec.encoding.x.field)?;
-    if !matches!(spec.encoding.y.aggregate, Some(Aggregate::Count)) {
-        data::check_field(rows, &spec.encoding.y.field)?;
-    }
-    if let Some(c) = &spec.encoding.color {
-        data::check_field(rows, &c.field)?;
-    }
-
-    let plot_w = opts.width.or(spec.width).unwrap_or(DEFAULT_WIDTH).max(8);
-    let plot_h = opts.height.or(spec.height).unwrap_or(DEFAULT_HEIGHT).max(3);
-
     match spec.mark {
-        Mark::Bar => render_bar(spec, opts, plot_w, plot_h),
-        Mark::Line | Mark::Point | Mark::Area => render_xy(spec, opts, plot_w, plot_h),
-    }
-}
-
-/// Spec-level rules the type system can't express. Loud by design: a
-/// silently ignored channel produces a chart the caller didn't ask for,
-/// which an agent reading dot art cannot detect.
-fn validate(spec: &Spec) -> Result<(), Error> {
-    if spec.encoding.x.aggregate.is_some() {
-        return Err(Error::Spec(
-            "`aggregate` on encoding.x is not supported; aggregation runs over y, grouped by x"
-                .into(),
-        ));
-    }
-    if let Some(c) = &spec.encoding.color {
-        if c.aggregate.is_some() {
-            return Err(Error::Spec(
-                "`aggregate` on encoding.color is not supported; put it on encoding.y".into(),
-            ));
+        Mark::Bar => {
+            // Bars compile to a Scene, then rasterize from it. compile() owns
+            // preflight, so the same validation fires for this arm.
+            let copts = compile::CompileOptions {
+                width: opts.width,
+                height: opts.height,
+                theme: opts.theme.clone(),
+            };
+            let scene = compile::compile(spec, &copts)?;
+            let ropts = raster::RasterOptions {
+                marker: opts.marker,
+                bar_style: opts.bar_style,
+                color: opts.color,
+            };
+            Ok(raster::rasterize(&scene, &ropts))
         }
-    }
-    if spec.mark == Mark::Bar {
-        if let Some(c) = &spec.encoding.color {
-            if c.field != spec.encoding.x.field {
-                return Err(Error::Spec(format!(
-                    "bar marks cannot group by color yet; encoding.color.field must equal \
-                     encoding.x.field (\"{}\") or be omitted",
-                    spec.encoding.x.field
-                )));
-            }
+        Mark::Line | Mark::Point | Mark::Area => {
+            // xy marks still flow through the legacy path; run the shared
+            // preflight explicitly. Task 5 folds this into compile().
+            compile::preflight(spec)?;
+            let (plot_w, plot_h) = compile::plot_dims(opts.width, opts.height, spec);
+            render_xy(spec, opts, plot_w, plot_h)
         }
-        if spec.encoding.x.ty == Some(FieldType::Quantitative) {
-            return Err(Error::Spec(
-                "bar marks treat x as categorical; omit encoding.x.type, or use mark \"line\" \
-                 or \"area\" for a quantitative x"
-                    .into(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn aggregate(values: &[f64], agg: Aggregate) -> f64 {
-    match agg {
-        Aggregate::Sum => values.iter().sum(),
-        Aggregate::Mean => values.iter().sum::<f64>() / values.len() as f64,
-        Aggregate::Median => {
-            let mut v = values.to_vec();
-            v.sort_by(f64::total_cmp);
-            let mid = v.len() / 2;
-            if v.len().is_multiple_of(2) {
-                (v[mid - 1] + v[mid]) / 2.0
-            } else {
-                v[mid]
-            }
-        }
-        Aggregate::Min => values.iter().cloned().fold(f64::INFINITY, f64::min),
-        Aggregate::Max => values.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
-        Aggregate::Count => values.len() as f64,
-    }
-}
-
-fn truncate(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        s.to_string()
-    } else {
-        s.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
     }
 }
 
@@ -266,130 +200,6 @@ impl Frame {
     fn finish(self, color: bool) -> String {
         self.buf.to_ansi(color)
     }
-}
-
-fn render_bar(
-    spec: &Spec,
-    opts: &RenderOptions,
-    plot_w: usize,
-    plot_h: usize,
-) -> Result<Rendered, Error> {
-    let rows = &spec.data.values;
-    let xf = &spec.encoding.x.field;
-    let yf = &spec.encoding.y.field;
-    let agg = spec.encoding.y.aggregate.unwrap_or(Aggregate::Sum);
-    let theme = &opts.theme;
-
-    let mut cats: Vec<String> = Vec::new();
-    let mut groups: Vec<Vec<f64>> = Vec::new();
-    let mut dropped = 0usize;
-    for row in rows {
-        let Some(xv) = row.get(xf) else {
-            dropped += 1;
-            continue;
-        };
-        let yn = if agg == Aggregate::Count {
-            Some(1.0)
-        } else {
-            row.get(yf).and_then(data::num)
-        };
-        let Some(yn) = yn else {
-            dropped += 1;
-            continue;
-        };
-        let cat = data::text(xv);
-        match cats.iter().position(|c| *c == cat) {
-            Some(i) => groups[i].push(yn),
-            None => {
-                cats.push(cat);
-                groups.push(vec![yn]);
-            }
-        }
-    }
-    if cats.is_empty() {
-        return Err(Error::Data(format!(
-            "no usable rows: field \"{yf}\" has no numeric values (or \"{xf}\" is always missing)"
-        )));
-    }
-    let values: Vec<f64> = groups.iter().map(|g| aggregate(g, agg)).collect();
-    if values.iter().any(|v| *v < 0.0) {
-        return Err(Error::Data(
-            "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
-        ));
-    }
-    let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let y = Linear::nice_from(0.0, vmax, plot_h.clamp(3, 6), true);
-    // validate() guarantees a color channel, if present, encodes the x field.
-    let categorical = spec.encoding.color.is_some();
-
-    let mut frame = Frame::new(spec.title.as_deref(), &[], &y, plot_w, plot_h, theme);
-    let mut canvas = PixelCanvas::new(plot_w, plot_h, opts.marker);
-
-    let n = cats.len();
-    let step = plot_w as f64 / n as f64;
-    let bar_w = ((step * 0.7).floor() as usize).clamp(1, plot_w);
-    let label_max = (step.floor() as usize).saturating_sub(1).max(1);
-
-    let mut x_labels: Vec<(usize, String)> = Vec::new();
-    for (i, v) in values.iter().enumerate() {
-        let center = (i as f64 + 0.5) * step;
-        let x0 = ((center - bar_w as f64 / 2.0).round().max(0.0) as usize).min(plot_w - bar_w);
-        let color = if categorical {
-            theme.series(i)
-        } else {
-            theme.grad(y.norm(*v))
-        };
-        match opts.bar_style {
-            BarStyle::Blocks => {
-                let level = (y.norm(*v) * (plot_h * 8) as f64).round() as i64;
-                for r in 0..plot_h {
-                    let fill = level - ((plot_h - 1 - r) * 8) as i64;
-                    if fill <= 0 {
-                        continue;
-                    }
-                    let ch = if fill >= 8 {
-                        '█'
-                    } else {
-                        EIGHTHS[fill as usize]
-                    };
-                    for c in 0..bar_w {
-                        frame
-                            .buf
-                            .set(frame.gutter + 1 + x0 + c, frame.top + r, ch, Some(color));
-                    }
-                }
-            }
-            BarStyle::Dots => {
-                let ph = (plot_h * 4) as i64;
-                let level = (y.norm(*v) * ph as f64).round() as i64;
-                for px in (x0 * 2) as i64..((x0 + bar_w) * 2) as i64 {
-                    for py in (ph - level)..ph {
-                        canvas.set(px, py, color);
-                    }
-                }
-            }
-        }
-        x_labels.push((
-            (center.round() as usize).min(plot_w - 1),
-            truncate(&cats[i], label_max),
-        ));
-    }
-    if opts.bar_style == BarStyle::Dots {
-        frame.blit(&canvas);
-    }
-    frame.draw_x_axis(&[], &x_labels, theme);
-
-    let meta = json!({
-        "mark": "bar",
-        "x": { "field": xf, "type": "nominal", "categories": cats },
-        "y": { "field": yf, "aggregate": agg, "domain": [y.min, y.max] },
-        "dropped_rows": dropped,
-        "size": frame.size_meta(),
-    });
-    Ok(Rendered {
-        text: frame.finish(opts.color),
-        meta,
-    })
 }
 
 struct Series {
@@ -597,7 +407,7 @@ fn render_xy(
         let labels = cols
             .iter()
             .zip(&x_cats)
-            .map(|(c, name)| (*c, truncate(name, 12)))
+            .map(|(c, name)| (*c, compile::truncate(name, 12)))
             .collect();
         (cols, labels)
     };

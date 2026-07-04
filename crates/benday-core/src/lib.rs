@@ -6,6 +6,7 @@
 //! program unchanged.
 
 mod ansi;
+pub mod compile;
 mod data;
 pub mod error;
 mod raster;
