@@ -7,6 +7,7 @@
 use serde::Serialize;
 use serde_json::json;
 
+use crate::ingest::DataSource;
 use crate::raster::Rgb;
 use crate::spec::{Aggregate, Mark};
 
@@ -138,6 +139,12 @@ pub struct Source {
     pub aggregate: Option<Aggregate>,
     /// Points-per-series counts etc. needed to reproduce --meta exactly.
     pub series_points: Vec<usize>,
+    /// Data provenance (from `Table::provenance`). Drives the conditional
+    /// `--meta` data block; always serialized (null when absent) so
+    /// `--dump-scene` shows it.
+    pub data_source: DataSource,
+    pub truncated: Option<bool>,
+    pub total_rows: Option<u64>,
 }
 
 impl Scene {
@@ -150,7 +157,7 @@ impl Scene {
     /// the order they appear in each `json!` block is irrelevant.
     pub fn meta(&self) -> serde_json::Value {
         let size = json!({ "columns": self.size.columns, "rows": self.size.rows });
-        match self.source.mark {
+        let mut meta = match self.source.mark {
             Mark::Bar => json!({
                 "mark": "bar",
                 "x": {
@@ -207,7 +214,30 @@ impl Scene {
                     "size": size,
                 })
             }
+        };
+        // The `data` block reports what the caller can't already know from
+        // their own bytes: it fires only when the data came from stdin, or the
+        // envelope declared truncation info. Inline data is the caller's own
+        // bytes, so inline-values/columns charts emit no data block — which
+        // keeps the glyph-gallery meta bundles byte-identical.
+        let informative = matches!(
+            self.source.data_source,
+            DataSource::StdinValues | DataSource::StdinColumns
+        ) || self.source.truncated.is_some()
+            || self.source.total_rows.is_some();
+        if informative {
+            if let Some(obj) = meta.as_object_mut() {
+                obj.insert(
+                    "data".to_string(),
+                    json!({
+                        "source": self.source.data_source,
+                        "truncated": self.source.truncated,
+                        "total_rows": self.source.total_rows,
+                    }),
+                );
+            }
         }
+        meta
     }
 }
 
@@ -294,6 +324,9 @@ mod tests {
                 y_field: "val".to_string(),
                 aggregate: None,
                 series_points: vec![2],
+                data_source: DataSource::InlineValues,
+                truncated: None,
+                total_rows: None,
             },
         };
 
@@ -390,7 +423,10 @@ mod tests {
             "aggregate": null,
             "series_points": [
               2
-            ]
+            ],
+            "data_source": "inline_values",
+            "truncated": null,
+            "total_rows": null
           }
         }
         "##);

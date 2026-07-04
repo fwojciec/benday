@@ -310,6 +310,9 @@ fn compile_bar(
             y_field: yf.clone(),
             aggregate: Some(agg),
             series_points: groups.iter().map(Vec::len).collect(),
+            data_source: table.provenance.source,
+            truncated: table.provenance.truncated,
+            total_rows: table.provenance.total_rows,
         },
     })
 }
@@ -615,6 +618,9 @@ fn compile_xy(
             y_field: yf.clone(),
             aggregate: None,
             series_points: series.iter().map(|s| s.points.len()).collect(),
+            data_source: table.provenance.source,
+            truncated: table.provenance.truncated,
+            total_rows: table.provenance.total_rows,
         },
     })
 }

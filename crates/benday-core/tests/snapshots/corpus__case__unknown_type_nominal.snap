@@ -107,6 +107,9 @@ expression: snapshot
     "series_points": [
       1,
       1
-    ]
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
   }
 }

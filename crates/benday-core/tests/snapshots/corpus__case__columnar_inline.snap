@@ -120,6 +120,9 @@ expression: snapshot
       1,
       1,
       1
-    ]
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
   }
 }

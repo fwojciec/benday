@@ -132,6 +132,9 @@ expression: snapshot
     "aggregate": null,
     "series_points": [
       3
-    ]
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
   }
 }

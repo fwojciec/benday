@@ -157,6 +157,9 @@ expression: snapshot
     "aggregate": null,
     "series_points": [
       5
-    ]
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
   }
 }

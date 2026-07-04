@@ -126,6 +126,9 @@ expression: snapshot
       1,
       1,
       1
-    ]
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
   }
 }
