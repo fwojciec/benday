@@ -11,6 +11,7 @@ pub mod error;
 mod raster;
 mod render;
 mod scale;
+pub mod scene;
 pub mod spec;
 pub mod theme;
 
