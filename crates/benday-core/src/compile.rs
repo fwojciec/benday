@@ -192,9 +192,9 @@ fn compile_bar(
     // validate() guarantees a color channel, if present, encodes the x field.
     let categorical = spec.encoding.color.is_some();
 
-    // --- Layout, formerly split across Frame::new / draw_y_axis / draw_x_axis.
+    // --- Layout.
     let title_rows = usize::from(spec.title.is_some());
-    // Bars carry no legend (render_bar always passed an empty legend).
+    // Bars carry no legend.
     let legend_rows = 0usize;
     let gutter = y
         .ticks()

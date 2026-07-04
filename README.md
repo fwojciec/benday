@@ -70,6 +70,17 @@ an agent rendering charts for the human reading its transcript.
   more reliable for agents than a protocol wrapper. The core is a pure
   library (`benday-core`, no I/O), so wrapping it later is trivial.
 
+## Architecture
+
+benday is a two-stage pipeline. `compile(spec, opts) -> Scene` resolves every
+data- and layout-dependent decision — scale domains, ticks, resolved series
+colors, normalized bar/point/line geometry — into a serializable `Scene` IR.
+`rasterize(scene, opts) -> Rendered` then maps that normalized geometry to
+glyphs and ANSI, knowing nothing about the source data; `render()` composes the
+two. The payoff: a new chart type is compiler-only work, a new visual style
+(glyphs, colors, bar fills) is rasterizer-only, and the `Scene` between them is
+snapshotted as the regression contract.
+
 ## Testing
 
 Three layers, from semantic to pixel:
@@ -97,7 +108,9 @@ cargo install --path crates/benday-cli
 
 ## Status
 
-Early. Works: all four marks, multi-series lines with legends, aggregation,
+Early, but the foundation is in place: the compile → Scene → rasterize
+pipeline, its golden spec→scene corpus, and the glyph-gallery characterization
+tests. Works: all four marks, multi-series lines with legends, aggregation,
 type inference, themes. Planned: temporal scales, `benday schema` (JSON
 Schema output), histograms/binning, negative and horizontal bars, `layer`
 composition, a Claude Code skill file.
