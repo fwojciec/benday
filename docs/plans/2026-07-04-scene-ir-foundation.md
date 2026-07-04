@@ -15,9 +15,11 @@ geometry to glyphs. `render()` keeps its signature as the composition. Design do
 make, GitHub Actions.
 
 **Hard rule for every task:** the rendered output of v0.1 must not change. The glyph
-snapshots created in Task 2 are the referee. If a snapshot diffs during Tasks 3–6 and
-you did not intend a visual change, the code is wrong — not the snapshot. Never
-`insta accept` a diff during the refactor.
+snapshots created in Task 2 are the referee. If an EXISTING snapshot diffs during
+Tasks 3–6 and you did not intend a visual change, the code is wrong — not the
+snapshot; never accept such a diff. NEWLY AUTHORED snapshots (Task 3's smoke test,
+Task 6's corpus) are accepted, but only after reviewing each one against what the
+output should be.
 
 **Execution notes:**
 
@@ -74,13 +76,27 @@ At the very top of `crates/benday-core/src/lib.rs`, before any other items:
 Rationale (put this reasoning in the commit message, not a comment): the crate agents'
 output depends on shouldn't be able to die impolitely; tests are exempt.
 
-**Step 4: Run `make validate`**
+Ratchet semantics, so nobody trips on it later: `clippy::unwrap_used` does NOT cover
+`.expect()` (that is the separate `expect_used` lint, deliberately not enabled).
+`expect` with a message stating the invariant is the sanctioned pattern for
+provably-unreachable failure. `unreachable!` is likewise not covered.
 
-If clippy flags an `unwrap()` or `panic!()` in non-test lib code, restructure to return
-`Error` instead. (`unreachable!` in `render_xy` is fine — not covered by these lints.)
-Expected: green.
+**Step 4: Fix the one existing production unwrap**
 
-**Step 5: Reduce CI to the same command**
+`crates/benday-core/src/raster.rs:116` — `braille_char` ends with
+`char::from_u32(0x2800 + u32::from(v)).unwrap()`. The whole braille block
+U+2800..=U+28FF is valid scalar values, so convert to the sanctioned pattern:
+
+```rust
+char::from_u32(0x2800 + u32::from(v)).expect("U+2800..=U+28FF are valid chars")
+```
+
+**Step 5: Run `make validate`**
+
+If clippy flags anything else in non-test lib code, restructure to return `Error`
+instead. Expected: green.
+
+**Step 6: Reduce CI to the same command**
 
 Replace the three `run:` steps in `.github/workflows/ci.yml` so the job body is:
 
@@ -93,10 +109,10 @@ Replace the three `run:` steps in `.github/workflows/ci.yml` so the job body is:
       - run: make validate
 ```
 
-**Step 6: Commit**
+**Step 7: Commit**
 
 ```bash
-git add Makefile .github/workflows/ci.yml crates/benday-core/src/lib.rs
+git add Makefile .github/workflows/ci.yml crates/benday-core/src/lib.rs crates/benday-core/src/raster.rs
 git commit -m "build: single make validate shared by local dev and CI, lint ratchet in core"
 ```
 
@@ -256,6 +272,28 @@ fn style_variants() {
         &RenderOptions { marker: Marker::Octant, ..opts(60, 10) },
     );
 }
+
+/// Color is ON by default for CLI callers, so the ANSI path needs its own
+/// characterization — the no-color gallery cannot see a regression in theme
+/// colors for title/legend/axis chrome or per-mark colors. Escape codes make
+/// these snapshots ugly to read; their job is diffing, not reading.
+#[test]
+fn colored_variants() {
+    let bar = parse(
+        r#"{"data":{"values":[{"m":"jan","v":3},{"m":"feb","v":7},{"m":"mar","v":5}]},
+          "mark":"bar","title":"colored bar",
+          "encoding":{"x":{"field":"m"},"y":{"field":"v"}}}"#,
+    );
+    snap("bar_ansi", &bar, &RenderOptions { color: true, ..opts(60, 10) });
+    let lines = parse(
+        r#"{"data":{"values":[
+            {"m":"a","v":1,"r":"west"},{"m":"b","v":4,"r":"west"},
+            {"m":"a","v":2,"r":"east"},{"m":"b","v":3,"r":"east"}]},
+          "mark":"line","title":"colored lines",
+          "encoding":{"x":{"field":"m"},"y":{"field":"v"},"color":{"field":"r"}}}"#,
+    );
+    snap("multi_series_ansi", &lines, &RenderOptions { color: true, ..opts(60, 10) });
+}
 ```
 
 **Step 3: Generate and accept the initial snapshots**
@@ -370,6 +408,9 @@ use crate::spec::Aggregate;
 pub struct Scene {
     pub size: Size,
     pub plot: Rect,
+    /// Resolved theme colors for non-mark elements. Colors are compile-time
+    /// facts everywhere — the rasterizer never sees a Theme.
+    pub chrome: Chrome,
     pub title: Option<Placed>,
     pub legend: Vec<LegendEntry>,
     pub y_axis: YAxis,
@@ -379,6 +420,11 @@ pub struct Scene {
     /// Provenance for --meta output.
     pub source: Source,
 }
+
+/// Colors for axes/labels (`axis`) and the title (`title`). Legend swatches
+/// carry their own color per entry; legend NAME text uses `axis`.
+#[derive(Serialize)]
+pub struct Chrome { pub axis: Rgb, pub title: Rgb }
 
 #[derive(Serialize)]
 pub struct Size { pub columns: usize, pub rows: usize }
@@ -510,37 +556,70 @@ of `render_bar` into `compile.rs`. The layout math currently inside `Frame::new`
 `draw_y_axis`, and `draw_x_axis` (gutter width, tick rows + dedupe, greedy label
 placement) is re-expressed here as Scene data — follow the invariants list above.
 
-**Step 2: Implement `rasterize()` for `SceneMark::Bars`**
+**Step 2: Move the canvas module, then implement `rasterize()` for `SceneMark::Bars`**
 
-`rasterize(scene: &Scene, opts: &RasterOptions) -> Rendered` where
+First the file move, so `mod raster;` resolves to the directory form:
+
+```bash
+mkdir crates/benday-core/src/raster
+git mv crates/benday-core/src/raster.rs crates/benday-core/src/raster/mod.rs
+```
+
+(Consider splitting the canvas into `raster/canvas.rs` re-exported from `mod.rs` if
+`mod.rs` gets crowded — optional.)
+
+Then `rasterize(scene: &Scene, opts: &RasterOptions) -> Rendered` where
 
 ```rust
 pub struct RasterOptions { pub marker: Marker, pub bar_style: BarStyle, pub color: bool }
 ```
 
+Note the theme is NOT here: every color the rasterizer stamps comes from the Scene —
+`scene.chrome.axis` for axes/labels/legend names, `scene.chrome.title` for the title,
+per-entry swatch colors, per-bar/series mark colors.
+
 It stamps: title, legend, y-axis chrome + labels (from scene rows), bar fills
 (dots via PixelCanvas or blocks via EIGHTHS, recovering cell integers with
 `.round()`), x-axis chrome + labels. Implement `Scene::meta()` for bars.
 
-**Step 3: Rewire `render()` for bars only**
+**Step 3: Rewire `render()` for bars only — WITHOUT dropping preflight for xy marks**
+
+`render()` currently runs `validate()` + the `check_field` calls for every mark
+before dispatch. During this task the xy path still goes through the old `render_xy`,
+so keep a shared preflight both paths use:
 
 ```rust
-Mark::Bar => {
-    let scene = compile::compile(spec, &copts)?;
-    Ok(raster::rasterize(&scene, &ropts))
+pub fn render(spec: &Spec, opts: &RenderOptions) -> Result<Rendered, Error> {
+    match spec.mark {
+        Mark::Bar => {
+            let scene = compile::compile(spec, &copts)?; // compile() owns preflight
+            Ok(raster::rasterize(&scene, &ropts))
+        }
+        Mark::Line | Mark::Point | Mark::Area => {
+            compile::preflight(spec)?; // validate() + check_field, extracted
+            render_xy(spec, opts, plot_w, plot_h)
+        }
+    }
 }
 ```
+
+`compile()` calls the same `preflight()` internally. The duplication for the xy arm
+is temporary scaffolding; Task 5 deletes it. The existing unit tests
+(`aggregate_on_x_is_rejected` etc.) prove preflight still fires for both arms.
 
 **Step 4: The referee**
 
 Run: `cargo test -p benday-core --test gallery`
-Expected: PASS with ZERO diffs. If any bar snapshot diffs, fix the code until it
-doesn't. Do not accept.
+Expected: PASS with ZERO diffs — including `bar_ansi` (chrome colors) and
+`bar_blocks`. If any snapshot diffs, fix the code until it doesn't. Do not accept.
 
 **Step 5: `make validate`, commit**
 
+`-am` misses new files; stage explicitly:
+
 ```bash
-git commit -am "refactor(core): bar marks compile to Scene and rasterize from it"
+git add crates/benday-core/src
+git commit -m "refactor(core): bar marks compile to Scene and rasterize from it"
 ```
 
 ---
@@ -566,13 +645,16 @@ pixel coordinates exactly (`round(frac * (pixel_dim - 1))`).
 **Step 3: Finish `Scene::meta()`** for xy marks (series names/colors/point counts).
 
 **Step 4: `render()` is now two lines for every mark.** Delete `Frame`, `render_bar`,
-`render_xy`. Keep the existing unit tests in `render.rs` (they exercise the public
-`render()` and must pass unchanged).
+`render_xy`, and the temporary direct `preflight()` call in `render()` (it lives on
+inside `compile()`). Keep the existing unit tests in `render.rs` (they exercise the
+public `render()` and must pass unchanged — including the validation-error tests,
+which now prove preflight fires via `compile()`).
 
 **Step 5: The referee**
 
 Run: `cargo test -p benday-core --test gallery`
-Expected: PASS, zero diffs, including `line_octant` and `bar_blocks`.
+Expected: PASS, zero diffs, including `line_octant`, `bar_blocks`, and both
+`*_ansi` colored snapshots.
 
 **Step 6: `make validate`, commit**
 

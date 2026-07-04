@@ -92,9 +92,13 @@ Properties the design depends on:
 - **Geometry is normalized** to `[0,1]` fractions of the plot rect; only text
   placement is in cells. The same data at a different `--marker` produces an
   identical Scene — marker never leaks into the compiler.
-- **Colors are resolved** to concrete `Rgb` (serialized as hex). Theme choices
-  are compile-time facts the corpus asserts on. Value-colored bars (gradient
-  per bar) mean `Bar` carries its own color override.
+- **Colors are resolved** to concrete `Rgb` (serialized as hex) — including
+  chrome (axis, title, legend text), which the Scene carries in a `chrome`
+  field so the rasterizer never sees a `Theme`. Theme choices are compile-time
+  facts the corpus asserts on. Value-colored bars (gradient per bar) mean
+  `Bar` carries its own color override. Because CLI color is on by default,
+  the glyph gallery includes ANSI (colored) snapshots alongside the no-color
+  ones.
 - **Ticks carry both** `frac` (semantic position) and `cell` (layout
   decision), so a corpus diff distinguishes "tick moved because the domain
   changed" from "label placement logic changed."
