@@ -97,9 +97,21 @@ spec's data object — the tolerant envelope applies only to the stdin document.
 **Type resolution precedence:** explicit spec `"type"` > declared column type
 > inference from data. The spec is the agent's stated intent and always wins.
 
-`--meta` grows a `data` block: source form (`values`/`columns`/`stdin`), row
-count, and `truncated`/`total_rows` when the envelope carried them, so a
-caller can see it charted partial data.
+**Scope:** the precedence chain applies where inference happens today — the
+x/y channels of line/point/area (plus the ordinal-sort decision for bar x).
+Bar y is NOT type-gated: it has always coerced values numerically row-by-row
+(`num()`: numbers, numeric strings, bools), with non-coercible values counted
+in `dropped_rows`. A declared `STRING` y column whose values parse as numbers
+still charts as a bar — that is today's documented coercion contract, not an
+inference bug for declared types to override. Tightening bar-y typing is out
+of scope for this cycle.
+
+`--meta` grows a `data` block — `{source, truncated, total_rows}` —
+**conditionally**: only when data came from stdin, or the envelope reported
+`truncated`/`total_rows`. Meta reports what the caller can't already know;
+inline data is the caller's own bytes, so inline-values charts emit no data
+block. (This also keeps the glyph-gallery bundles, which include meta,
+byte-identical through this cycle — the referee stays intact.)
 
 ## Architecture
 

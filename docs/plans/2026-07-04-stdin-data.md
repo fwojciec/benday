@@ -178,7 +178,9 @@ git add crates/benday-core/src/ingest.rs crates/benday-core/src/lib.rs
 git commit -m "feat(core): ingest module — DataDoc, Table, resolve, declared types (unwired)"
 ```
 
----## Task 2: `compile` takes a `&Table`
+---
+
+## Task 2: `compile` takes a `&Table`
 
 **Files:**
 - Modify: `crates/benday-core/src/compile.rs` (signature + every `spec.data.values` read)
@@ -221,7 +223,9 @@ git add -A
 git commit -m "refactor(core): compile takes a resolved Table; render accepts an optional data document"
 ```
 
----## Task 3: Spec grammar + declared-type resolution
+---
+
+## Task 3: Spec grammar + declared-type resolution
 
 **Files:**
 - Modify: `crates/benday-core/src/spec.rs`
@@ -280,20 +284,53 @@ let xt = spec.encoding.x.ty
     .unwrap_or_else(|| data::infer_type(&table.rows, xf));
 ```
 
-(same for `yt`). `compile_bar` is untouched: bars treat x as categorical
-regardless, and `validate`'s quantitative-x rejection keys off the EXPLICIT
-spec type only — a declared INT64 x on a bar chart is fine, it just becomes
-categories.
+(same for `yt`). `compile_bar`'s y handling is untouched — deliberately, per
+the design's scope note: the precedence chain applies where INFERENCE happens
+today (xy channels), while bar y keeps its row-by-row `num()` coercion
+contract (non-coercible values → `dropped_rows`). A declared `STRING` bar y
+whose values parse as numbers still charts; do NOT add a bar-y type gate.
+Bars treat x as categorical regardless of type, and `validate`'s
+quantitative-x rejection keys off the EXPLICIT spec type only — a declared
+INT64 x on a bar chart is fine, it just becomes categories.
 
 **Step 3: Ordinal categories sort.** When the resolved x type is `Ordinal`
-(from spec or declared DATE/TIMESTAMP), sort the category list lexically
-(`sort_unstable`) after collection, in both `compile_bar` and `compile_xy` —
+(from spec or declared DATE/TIMESTAMP), sort the category list lexically —
 ISO date strings then plot chronologically even when rows arrive shuffled.
-`Nominal` keeps first-seen order exactly as today. (compile_bar needs the
-resolved x type for this — compute it with the same precedence chain; it
-changes nothing else about bar compilation.) Note: category order feeds
-`groups`/series indices, so sort BEFORE aggregation-by-index, or sort the
-(cat, group) pairs together.
+`Nominal` keeps first-seen order exactly as today.
+
+IMPLEMENTATION TRAP — the index remap. `compile_xy` assigns `xn = category
+index` DURING the row scan (`compile.rs:370`) and stores those indices in
+series points. Sorting `x_cats` afterward without touching the points sorts
+the axis labels while every point still refers to first-seen order — a
+silently wrong chart, the exact failure benday exists to prevent. Do it as a
+remap after the scan:
+
+```rust
+if xt == FieldType::Ordinal {
+    let mut sorted = x_cats.clone();
+    sorted.sort_unstable();
+    // old index -> new index
+    let remap: Vec<usize> = x_cats
+        .iter()
+        .map(|c| sorted.iter().position(|s| s == c).expect("same elements"))
+        .collect();
+    for s in &mut series {
+        for p in &mut s.points {
+            p.0 = remap[p.0 as usize] as f64;
+        }
+    }
+    x_cats = sorted;
+}
+```
+
+(Place it right before the per-series `points.sort_by` so points end up in
+sorted-x order too.) `compile_bar` is index-free — categories and groups are
+parallel vectors — so there sort the `(cat, group)` pairs together (zip, sort
+by cat, unzip) before aggregation. The `declared_date_ordinal` corpus case
+with shuffled rows is the test that catches the trap: verify the scene's
+points are monotonically increasing in x AND the categories are sorted.
+`compile_bar` needs the resolved x type for the sort decision only — compute
+it with the same precedence chain; nothing else about bar compilation changes.
 
 **Step 4: New corpus cases** (drop in `tests/cases/`, run, review each scene
 against hand-computed expectations, accept):
@@ -321,7 +358,9 @@ git add -A
 git commit -m "feat(core): optional/columnar spec data; declared column types drive resolution; ordinal categories sort"
 ```
 
----## Task 4: Provenance in the Scene, conditional `--meta` data block
+---
+
+## Task 4: Provenance in the Scene, conditional `--meta` data block
 
 **Files:**
 - Modify: `crates/benday-core/src/scene.rs` (`Source` + `meta()`)
@@ -366,7 +405,9 @@ git add -A
 git commit -m "feat(core): data provenance in Scene source; --meta data block for piped/truncated data"
 ```
 
----## Task 5: CLI stdin routing + integration tests
+---
+
+## Task 5: CLI stdin routing + integration tests
 
 **Files:**
 - Modify: `crates/benday-cli/src/main.rs`
@@ -421,7 +462,9 @@ git add crates/benday-cli
 git commit -m "feat(cli): stdin carries data when the spec comes via flag; assert_cmd integration tests"
 ```
 
----## Task 6: Docs + examples
+---
+
+## Task 6: Docs + examples
 
 **Files:**
 - Modify: `README.md`
