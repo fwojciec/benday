@@ -28,16 +28,18 @@ Sleep 3.5s
 Type "clear"
 Enter
 
-Type "benday --spec-file examples/area.json --theme lichtenstein"
+Type "# bad specs fail loudly -- the error carries the fix:"
+Enter
+Sleep 500ms
+Type `echo '{"data":{"values":[{"a":1,"b":2}]},"mark":"donut","encoding":{"x":{"field":"a"},"y":{"field":"b"}}}' | benday`
 Sleep 600ms
 Enter
-Sleep 3.5s
+Sleep 4.5s
 
 Type "clear"
 Enter
 
-# Strict spec validation: errors carry the fix
-Type `echo '{"data":{"values":[{"a":1,"b":2}]},"mark":"donut","encoding":{"x":{"field":"a"},"y":{"field":"b"}}}' | benday`
+Type "benday --spec-file examples/area.json --theme lichtenstein"
 Sleep 600ms
 Enter
-Sleep 4s
+Sleep 4.5s
