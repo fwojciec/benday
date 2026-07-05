@@ -87,19 +87,27 @@ pub fn parse_data_doc(s: &str) -> Result<DataDoc, Error> {
     })
 }
 
-/// Map a declared column type (BigQuery + common SQL spellings, case-
-/// insensitive) to a field type. Unknown names fall back to nominal — NOT an
-/// error: producers grow types, and nominal is safe-wrong-in-the-obvious-way.
-/// DATE/DATETIME/TIMESTAMP/TIME map to temporal: benday now owns time layout
-/// (true positions on a calendar scale) when SQL is absent — see
+/// Map a declared column type (BigQuery + common SQL spellings + the
+/// JSON-Schema-ish envelope vocabulary of mcp-dataconnector,
+/// case-insensitive) to a field type. Unknown names fall back to nominal —
+/// NOT an error: producers grow types, and nominal is
+/// safe-wrong-in-the-obvious-way. But the fallback OVERRIDES inference
+/// (declared beats inference), so a missing vocabulary entry makes a
+/// declaring producer chart WORSE than a silent one — dogfooding hit exactly
+/// this with "number" (2026-07-05); when a real producer's type string lands
+/// in the fallback, add it here. BOOLEAN/BOOL are recognized-nominal
+/// (a deliberate two-category axis), listed so they read as vocabulary, not
+/// fallback drift. DATE/DATETIME/TIMESTAMP/TIME map to temporal: benday owns
+/// time layout (true positions on a calendar scale) when SQL is absent — see
 /// docs/plans/2026-07-05-temporal-family-design.md for why this reverses the
 /// old "no temporal scale" doctrine. An explicit `"ordinal"` on the encoding
 /// restores the evenly-spaced behavior per chart.
 pub fn declared_field_type(t: &str) -> FieldType {
     match t.to_ascii_uppercase().as_str() {
         "INT64" | "INTEGER" | "INT" | "SMALLINT" | "BIGINT" | "FLOAT64" | "FLOAT" | "DOUBLE"
-        | "NUMERIC" | "BIGNUMERIC" | "DECIMAL" | "REAL" => FieldType::Quantitative,
+        | "NUMERIC" | "BIGNUMERIC" | "DECIMAL" | "REAL" | "NUMBER" => FieldType::Quantitative,
         "DATE" | "DATETIME" | "TIMESTAMP" | "TIME" => FieldType::Temporal,
+        "BOOLEAN" | "BOOL" => FieldType::Nominal,
         _ => FieldType::Nominal,
     }
 }
@@ -444,6 +452,9 @@ mod tests {
             "BIGNUMERIC",
             "DECIMAL",
             "REAL",
+            // JSON-Schema-ish vocabulary (mcp-dataconnector envelope):
+            // "number" declares Decimal/Float aggregates like SUM(volume).
+            "NUMBER",
         ] {
             assert_eq!(declared_field_type(t), FieldType::Quantitative, "{t}");
         }
@@ -451,9 +462,13 @@ mod tests {
         for t in ["DATE", "DATETIME", "TIMESTAMP", "TIME"] {
             assert_eq!(declared_field_type(t), FieldType::Temporal, "{t}");
         }
-        // Strings and unknowns fall back to nominal.
+        // Strings, booleans, and unknowns land on nominal — booleans are
+        // RECOGNIZED (deliberate two-category axis), not fallback drift.
         assert_eq!(declared_field_type("STRING"), FieldType::Nominal);
         assert_eq!(declared_field_type("BOOL"), FieldType::Nominal);
+        assert_eq!(declared_field_type("BOOLEAN"), FieldType::Nominal);
+        assert_eq!(declared_field_type("boolean"), FieldType::Nominal);
+        assert_eq!(declared_field_type("number"), FieldType::Quantitative);
         assert_eq!(declared_field_type("whatever"), FieldType::Nominal);
         // Case-insensitive.
         assert_eq!(declared_field_type("int64"), FieldType::Quantitative);
