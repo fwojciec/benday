@@ -17,8 +17,8 @@ Two independent sources converged on the same conclusion this cycle:
   with no width awareness and the buffer clips at the right edge, so an
   overflowing entry renders as a dangling `─` fragment or vanishes. A related
   silent failure sits in the color channel: `theme.series()` cycles the
-  palette, so series 7 reuses series 1's color — indistinguishable lines at
-  any width.
+  palette (8 colors in the default theme), so series 9 reuses series 1's
+  color — indistinguishable lines at any width.
 - **Visual review** of rendered output: y-tick labels land on irregular row
   gaps (1,2,2,1,2,1 on the default chart) because 7 nice values get rounded
   onto 10 rows — 1.5 rows per tick, with floating-point jitter deciding which
@@ -61,8 +61,11 @@ untouched. Height 13 is deliberate: 12 row-intervals divide by 2, 3, 4, and
 columns. Measured cost on a representative bar chart: ~2.2 KB plain /
 ~3.2 KB colored, vs 1.4 / 2.2 today — affordable for agent transcripts.
 
-Net height cost for a titled multi-series chart: +2 rows, plus wrap rows
-only when series overflow one row.
+Net height cost: +1 row for titled charts (the blank row); the legend
+relocation itself is height-neutral for a one-row legend, since the legend
+already occupied a row above the plot — only wrap overflow adds more. An
+untitled multi-series chart keeps its total height, with the plot rising
+one row.
 
 ## Row-aligned y-ticks
 

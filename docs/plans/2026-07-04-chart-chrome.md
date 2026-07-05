@@ -60,10 +60,21 @@ fn row_aligned_climbs_ladder_past_domain_inflation() {
 #[test]
 fn row_aligned_min_spacing_forces_fallback() {
     // h6: 5 intervals (prime). step 2 -> k=5, spacing 1 (rejected);
-    // step 5 -> k=2 (5 % 2 != 0); step 10 -> k=1: min/max only.
+    // step 5 -> k=2 (5 % 2 != 0, k <= 2): single-interval fallback.
     let s = Linear::row_aligned(0.0, 10.0, 6, 6, true);
     assert_eq!((s.min, s.max, s.step), (0.0, 10.0, 10.0));
     assert_eq!(s.ticks(), vec![0.0, 10.0]);
+}
+
+#[test]
+fn row_aligned_zero_straddle_terminates() {
+    // THE HANG CASE: a domain straddling zero nices to lo=-step, hi=step
+    // at every coarser rung — k pins at 2, and 5 intervals never divide
+    // by 2. The k<=2 fallback must fire: single interval over the domain
+    // niced at the FINEST step (minimal inflation), two ticks.
+    let s = Linear::row_aligned(-20.0, 30.0, 6, 6, false);
+    assert_eq!((s.min, s.max, s.step), (-20.0, 30.0, 50.0));
+    assert_eq!(s.ticks(), vec![-20.0, 30.0]);
 }
 
 #[test]
@@ -91,8 +102,13 @@ free function next to `nice_num`):
 /// Like `nice_from`, but for a y axis drawn on `rows` terminal rows: the
 /// step is coarsened up the 1/2/5 ladder until the tick intervals divide
 /// the row intervals exactly, so every tick lands on a uniformly spaced
-/// integer row at least 2 rows from its neighbor. Terminates because a
-/// step spanning the whole domain gives k = 1, which divides everything.
+/// integer row at least 2 rows from its neighbor.
+///
+/// Termination: k strictly shrinks as the step coarsens, and k = 1 always
+/// passes — but a domain straddling zero pins k at 2 forever (it nices to
+/// lo = -step, hi = step at every rung), so k <= 2 without alignment falls
+/// back to a single interval: the domain niced at the FINEST step (minimal
+/// inflation), its two endpoints the only ticks.
 pub fn row_aligned(
     mut min: f64,
     mut max: f64,
@@ -108,13 +124,23 @@ pub fn row_aligned(
         max = min + 1.0;
     }
     let intervals = rows.max(3) - 1;
-    let mut step = nice_num((max - min) / (target_ticks.max(2) - 1) as f64, true);
+    let step0 = nice_num((max - min) / (target_ticks.max(2) - 1) as f64, true);
+    let mut step = step0;
     loop {
         let lo = (min / step).floor() * step;
         let hi = (max / step).ceil() * step;
         let k = ((hi - lo) / step).round() as usize;
         if k >= 1 && intervals % k == 0 && intervals / k >= 2 {
             return Linear { min: lo, max: hi, step };
+        }
+        if k <= 2 {
+            let lo = (min / step0).floor() * step0;
+            let hi = (max / step0).ceil() * step0;
+            return Linear {
+                min: lo,
+                max: hi,
+                step: hi - lo,
+            };
         }
         step = next_nice(step);
     }
@@ -201,11 +227,17 @@ stutters today:
 }
 ```
 
-**Step 4: Rename the misnomer.** In `gallery.rs`, rename the
-`tick_collision_h7` case (and its two mentions in the options plumbing at
-`gallery.rs:87-105`) to `small_height_ticks_h7`; `git rm` the old snapshot
-file `tests/snapshots/gallery__tick_collision_h7.snap` (use `git rm`/`git
-add` explicitly — `commit -am` misses renames).
+**Step 4: Rename the misnomer — BOTH copies.** The stale name exists in the
+gallery and the corpus:
+- `gallery.rs`: rename the `tick_collision_h7` case (and its two mentions in
+  the options plumbing at `gallery.rs:87-105`) to `small_height_ticks_h7`;
+  `git rm` the old snapshot `tests/snapshots/gallery__tick_collision_h7.snap`.
+- Corpus: `git mv tests/cases/tick_collision_h7.json
+  tests/cases/small_height_ticks_h7.json`; `git rm` the old snapshot
+  `tests/snapshots/corpus__case__tick_collision_h7.snap` (the new stem
+  produces a fresh snapshot name automatically).
+
+Use `git rm`/`git mv`/`git add` explicitly — `commit -am` misses renames.
 
 **Step 5:** `make validate`, then review pending snapshots. Authorized diffs:
 - **Corpus: any case's `y_axis` block** (tick rows now uniformly spaced;
@@ -307,13 +339,22 @@ In the snapshot, verify by hand: all five entries present, wrapped entries'
 `row` = first legend row + 1, no entry's `col + 3 + name-width` exceeds
 `size.columns`, and `size.rows` grew by the wrap row.
 
-**Step 4:** `make validate`, review pending snapshots. Authorized diffs:
-- **Corpus/gallery, titled charts:** one extra blank row — `plot.y` and every
-  buffer-absolute row below it shift by +1; `size.rows` +1.
-- **Corpus/gallery, multi-series charts:** legend entries move from the
-  pre-plot row to below the x labels; `size.rows` grows by the legend row
-  count; single-series and bar charts' legends unchanged (empty).
-- `multi_series_ansi` (gallery): both effects.
+**Step 4:** `make validate`, review pending snapshots. Note the legend
+relocation is HEIGHT-NEUTRAL for a one-row legend — it already occupied a
+row above the plot; only the title's blank row and wrap overflow add height.
+Authorized diffs, exactly:
+- **Titled, single-series or bar:** `plot.y` +1, `size.rows` +1 (the blank
+  row).
+- **Titled, multi-series:** `plot.y` unchanged (the blank row replaces the
+  old legend row above the plot); `size.rows` +1 (the legend row reappears
+  below); legend entries' `row` moves below the x labels.
+- **Untitled, multi-series:** `plot.y` −1 (legend gone from above),
+  `size.rows` unchanged (the row moved, not grew); legend entries' `row`
+  moves below.
+- **Wrapping legends** (the new `legend_wrap` case): `size.rows` additionally
+  + (wrap rows).
+- **Untitled single-series and untitled bars: zero diffs.**
+- `multi_series_ansi` (gallery) follows the titled-multi-series row.
 
 Zero diffs allowed in: tick rows/labels (relative to plot top), mark
 geometry, x label columns, error texts. The orchestrator renders a titled
@@ -386,12 +427,14 @@ Nothing else — no existing case has more than 8 series.
 **Step 2:** main.rs flag docs: `(overrides spec.width; default 72)` and
 `(overrides spec.height; default 13)`.
 
-**Step 3:** `make validate`, review. Authorized diffs: **every corpus
-snapshot** (compiled at defaults): `size`, `plot`, all buffer-absolute
-rows/cols, tick sets re-chosen for 12 intervals, bar/label geometry.
-**Zero gallery diffs** — the gallery pins explicit sizes. CLI assert_cmd
-tests must pass unmodified (they are size-insensitive; if one fails, stop
-and report, do not adjust it silently).
+**Step 3:** `make validate`, review. Authorized diffs: **every SUCCESSFUL
+corpus Scene snapshot** (compiled at defaults): `size`, `plot`, all
+buffer-absolute rows/cols, tick sets re-chosen for 12 intervals, bar/label
+geometry. **Zero diffs in `ERROR (…)` corpus snapshots** — error texts do
+not embed dimensions, so an error diff here means a real behavior change:
+stop and report. **Zero gallery diffs** — the gallery pins explicit sizes.
+CLI assert_cmd tests must pass unmodified (they are size-insensitive; if
+one fails, stop and report, do not adjust it silently).
 
 **Step 4:** Commit: `feat: default chart size 72x13`
 
