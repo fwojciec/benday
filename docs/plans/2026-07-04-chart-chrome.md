@@ -175,7 +175,8 @@ fn next_nice(step: f64) -> f64 {
 **Files:**
 - Modify: `crates/benday-core/src/compile.rs`
 - Create: `crates/benday-core/tests/cases/tick_rhythm.json`
-- Rename: `tick_collision_h7` gallery case → `small_height_ticks_h7`
+- Rename: `tick_collision_h7` → `small_height_ticks_h7` (BOTH the gallery
+  case and the corpus case + their snapshots — see Step 4)
 
 **Step 1: Shared tick builder.** Both compile paths currently duplicate the
 tick loop (`compile.rs:231-245` bar, `compile.rs:501-515` xy). Replace both

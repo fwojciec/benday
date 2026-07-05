@@ -80,8 +80,12 @@ divides `plot_h − 1`. Algorithm: start from today's Heckbert step and walk
 up the nice ladder (1 → 2 → 5 → 10 → …) until `k` divides `plot_h − 1` with
 spacing ≥ 2 rows; take the **smallest acceptable step** (coarser steps can
 inflate the niced domain — max 6 becomes max 10 at step 5 — so inflation
-only happens when nothing tighter is even). Termination is guaranteed:
-`k = 1` (just min and max labeled) divides everything.
+only happens when nothing tighter is even). Termination needs a fallback:
+`k` shrinks as the step coarsens and `k = 1` divides everything, but a
+domain **straddling zero** nices to `lo = −step, hi = step` at every rung —
+`k` pins at 2, which never divides an odd interval count. So when `k ≤ 2`
+without alignment, fall back to a **single interval**: the domain niced at
+the finest step (minimal inflation), its two endpoints the only ticks.
 
 The dice chart (domain 0–6, Heckbert step 1, k = 6): at the new default
 height 13 (12 intervals, 12 % 6 = 0) step 1 is already even — all seven
@@ -133,8 +137,9 @@ comes from three layers:
    updates where layout shifted.
 2. **Unit tests own the algorithm.** The row-aligned step search gets
    table-driven tests in `scale.rs`: (domain, plot_h) → (step, tick count,
-   row spacing), including the `k = 1` fallback and
-   smallest-acceptable-step selection.
+   row spacing), including the zero-straddle `k ≤ 2` single-interval
+   fallback (the would-be infinite loop) and smallest-acceptable-step
+   selection.
 3. **The gallery is re-authored once, reviewed once.** Tasks are ordered so
    glyph output churns early and settles: ticks → layout/legend/title →
    palette error → defaults last. Intermediate re-baselines get a sanity
