@@ -78,9 +78,11 @@ Two stdin shapes are accepted, auto-detected by structure:
 A declared `columns[].type` (case-insensitive, BigQuery and common SQL
 spellings) beats type inference exactly where numeric-looking codes and
 string-encoded dates would otherwise fool it: `INT64`/`FLOAT64`/`NUMERIC`/…
-map to quantitative; `DATE`/`DATETIME`/`TIMESTAMP`/`TIME` map to ordinal for
-now (ISO strings sort chronologically — real temporal scales are next cycle);
-anything else, including unrecognized type names, falls back to nominal.
+map to quantitative; `DATE`/`DATETIME`/`TIMESTAMP`/`TIME` map to ordinal by
+design — ISO strings sort chronologically, and date bucketing and label
+formatting belong to the SQL that produced the rows (`date_trunc`,
+`FORMAT_DATE`), so benday needs no temporal scale of its own; anything else,
+including unrecognized type names, falls back to nominal.
 Resolution precedence is strict: an explicit spec `"type"` beats a declared
 column type beats inference — the spec is the caller's stated intent and
 always wins.
@@ -163,10 +165,13 @@ Early, but the foundation is in place: the compile → Scene → rasterize
 pipeline, its golden spec→scene corpus, and the glyph-gallery characterization
 tests. Works: all four marks, multi-series lines with legends, horizontal bars
 (content-sized rankings) and grouped bars (vertical or horizontal),
-aggregation, type inference, themes. Planned: temporal scales, `benday schema`
-(JSON Schema output), histograms/binning, stacked bars, `layer` composition, a
-Claude Code skill file. Negative bars remain unsupported (a hard error, not a
-silent miss).
+aggregation, type inference, themes. Planned: a Claude Code skill file, a
+crates.io release, stacked bars, value labels at bar ends, `benday schema`
+(JSON Schema output), histograms/binning, `layer` composition. Deliberately
+absent: temporal scales (SQL owns sorting, bucketing, and date formatting —
+declared dates chart as ordinal) and sort grammar (`ORDER BY` in the query IS
+the ranking). Negative bars remain unsupported (a hard error, not a silent
+miss).
 
 MIT. Octant glyph table derived from
 [ratatui](https://github.com/ratatui/ratatui) (MIT).

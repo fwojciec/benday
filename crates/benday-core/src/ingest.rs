@@ -90,8 +90,9 @@ pub fn parse_data_doc(s: &str) -> Result<DataDoc, Error> {
 /// Map a declared column type (BigQuery + common SQL spellings, case-
 /// insensitive) to a field type. Unknown names fall back to nominal — NOT an
 /// error: producers grow types, and nominal is safe-wrong-in-the-obvious-way.
-/// DATE/TIMESTAMP map to ordinal THIS CYCLE (ISO strings sort lexically =
-/// chronologically); they become temporal in the next cycle.
+/// DATE/TIMESTAMP map to ordinal BY DESIGN, not as an interim step: ISO
+/// strings sort lexically = chronologically, and SQL owns date bucketing and
+/// label formatting — benday has no temporal scale on the roadmap.
 pub fn declared_field_type(t: &str) -> FieldType {
     match t.to_ascii_uppercase().as_str() {
         "INT64" | "INTEGER" | "INT" | "SMALLINT" | "BIGINT" | "FLOAT64" | "FLOAT" | "DOUBLE"
