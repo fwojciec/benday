@@ -1,4 +1,5 @@
-//! Civil-date math and strict ISO parsing for the temporal field type.
+//! Civil-date math, strict ISO parsing, and calendar-ladder ticks for the
+//! temporal field type.
 //!
 //! A temporal value is one f64: milliseconds since the Unix epoch, naive.
 //! Conversion between civil dates and epoch days uses Howard Hinnant's
@@ -11,6 +12,9 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 const MS_PER_DAY: i64 = 86_400_000;
+const MS_PER_HOUR: i64 = 3_600_000;
+const MS_PER_MIN: i64 = 60_000;
+const MS_PER_SEC: i64 = 1_000;
 
 /// Days since 1970-01-01 for a civil date (proleptic Gregorian).
 pub(crate) fn days_from_civil(y: i64, m: u64, d: u64) -> i64 {
@@ -189,6 +193,336 @@ pub(crate) fn parse_temporal(s: &str) -> Option<f64> {
     Some((days * MS_PER_DAY + ms - offset) as f64)
 }
 
+/// The label class of a ladder rung: which delta form its ticks show and
+/// which rollover restores full context.
+#[derive(Clone, Copy)]
+enum Unit {
+    Sec,
+    Min,
+    Hour,
+    /// Days and weeks share the `Jun 12` idiom.
+    Day,
+    Month,
+    Quarter,
+    Year,
+}
+
+/// One rung of the calendar ladder: knows how to floor a timestamp to its
+/// boundary and how to step a boundary to the next.
+#[derive(Clone, Copy)]
+enum Rung {
+    /// Fixed width in ms, seconds through days. Every width divides a day,
+    /// so flooring raw epoch millis lands on the civil boundary.
+    Fixed(i64, Unit),
+    /// Monday-anchored weeks.
+    Week,
+    /// `n`-month steps (1 = months, 3 = quarters), stepped on the CIVIL
+    /// form: fixed-width ms is wrong across month lengths.
+    Months(i64, Unit),
+    /// `n`-year steps on the civil form (leap years); `n` walks the 1/2/5
+    /// ladder without a cap.
+    Years(i64),
+}
+
+/// Finest to coarsest below years; year rungs continue inside
+/// `temporal_axis` itself, since they are unbounded. To add a rung: touch
+/// LADDER + `Unit` + `tick_label` + `Rung::unit`; `Fixed` widths must
+/// divide a day (a 2d rung would float off calendar boundaries).
+const LADDER: [Rung; 16] = [
+    Rung::Fixed(MS_PER_SEC, Unit::Sec),
+    Rung::Fixed(5 * MS_PER_SEC, Unit::Sec),
+    Rung::Fixed(15 * MS_PER_SEC, Unit::Sec),
+    Rung::Fixed(30 * MS_PER_SEC, Unit::Sec),
+    Rung::Fixed(MS_PER_MIN, Unit::Min),
+    Rung::Fixed(5 * MS_PER_MIN, Unit::Min),
+    Rung::Fixed(15 * MS_PER_MIN, Unit::Min),
+    Rung::Fixed(30 * MS_PER_MIN, Unit::Min),
+    Rung::Fixed(MS_PER_HOUR, Unit::Hour),
+    Rung::Fixed(3 * MS_PER_HOUR, Unit::Hour),
+    Rung::Fixed(6 * MS_PER_HOUR, Unit::Hour),
+    Rung::Fixed(12 * MS_PER_HOUR, Unit::Hour),
+    Rung::Fixed(MS_PER_DAY, Unit::Day),
+    Rung::Week,
+    Rung::Months(1, Unit::Month),
+    Rung::Months(3, Unit::Quarter),
+];
+
+/// A rung is sensible from three ticks up. Two reasons: a coarse two-tick
+/// rung expands the domain to boundaries far outside the data (six years
+/// shown on a ten-year axis) and domain inflation is a geometric lie; and
+/// three is the only threshold under which width-starved plots reach the
+/// first-and-last fallback instead of landing on such a rung.
+const MIN_TICKS: usize = 3;
+
+impl Rung {
+    fn unit(self) -> Unit {
+        match self {
+            Rung::Fixed(_, u) | Rung::Months(_, u) => u,
+            Rung::Week => Unit::Day,
+            Rung::Years(_) => Unit::Year,
+        }
+    }
+
+    /// Floor a timestamp to this rung's calendar boundary.
+    fn floor(self, ms: i64) -> i64 {
+        match self {
+            Rung::Fixed(w, _) => ms.div_euclid(w) * w,
+            Rung::Week => {
+                // Epoch day 0 is a Thursday: (z + 3) mod 7 is 0 on Mondays.
+                let z = ms.div_euclid(MS_PER_DAY);
+                (z - (z + 3).rem_euclid(7)) * MS_PER_DAY
+            }
+            Rung::Months(n, _) => {
+                let (y, m, _) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+                month_start((y * 12 + m as i64 - 1).div_euclid(n) * n)
+            }
+            Rung::Years(n) => {
+                let (y, _, _) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+                days_from_civil(y.div_euclid(n) * n, 1, 1) * MS_PER_DAY
+            }
+        }
+    }
+
+    /// Step a boundary (a value `floor` returned) to the next one.
+    fn next(self, ms: i64) -> i64 {
+        match self {
+            Rung::Fixed(w, _) => ms + w,
+            Rung::Week => ms + 7 * MS_PER_DAY,
+            Rung::Months(n, _) => {
+                let (y, m, _) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+                month_start(y * 12 + m as i64 - 1 + n)
+            }
+            Rung::Years(n) => {
+                let (y, _, _) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+                days_from_civil(y + n, 1, 1) * MS_PER_DAY
+            }
+        }
+    }
+}
+
+/// Midnight opening month index `m0` (years * 12 + zero-based month).
+fn month_start(m0: i64) -> i64 {
+    days_from_civil(m0.div_euclid(12), (m0.rem_euclid(12) + 1) as u64, 1) * MS_PER_DAY
+}
+
+/// Boundaries from `floor(min)` through the first one at or past `max`.
+/// `None` once the count exceeds `cap` — the rung cannot fit anyway.
+fn rung_ticks(rung: Rung, min: i64, max: i64, cap: usize) -> Option<Vec<i64>> {
+    let mut t = rung.floor(min);
+    let mut out = vec![t];
+    while t < max {
+        t = rung.next(t);
+        out.push(t);
+        if out.len() > cap {
+            return None;
+        }
+    }
+    Some(out)
+}
+
+const MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// Civil parts of a timestamp: (year, month, day, hour, minute, second).
+fn parts(ms: i64) -> (i64, u64, u64, i64, i64, i64) {
+    let (y, m, d) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+    let s = ms.rem_euclid(MS_PER_DAY) / 1000;
+    (y, m, d, s / 3600, s / 60 % 60, s % 60)
+}
+
+/// Context + delta labeling: the delta form shows only what the step
+/// changes; full context appears where `prev` is None (the first tick, and
+/// fallback endpoints) and at each rollover — a new civil day for sub-day
+/// units, a new year for day-and-coarser.
+fn tick_label(unit: Unit, ms: i64, prev: Option<i64>) -> String {
+    let (y, mo, d, hh, mi, ss) = parts(ms);
+    let month = MONTHS[mo as usize - 1];
+    let yy = y.rem_euclid(100);
+    let new_day = prev.is_none_or(|p| p.div_euclid(MS_PER_DAY) != ms.div_euclid(MS_PER_DAY));
+    let new_year = prev.is_none_or(|p| parts(p).0 != y);
+    match unit {
+        Unit::Sec => {
+            let t = format!("{hh:02}:{mi:02}:{ss:02}");
+            if new_day {
+                format!("{month} {d} {t}")
+            } else {
+                t
+            }
+        }
+        Unit::Min | Unit::Hour => {
+            let t = format!("{hh:02}:{mi:02}");
+            if new_day {
+                format!("{month} {d} {t}")
+            } else {
+                t
+            }
+        }
+        Unit::Day => {
+            if new_year {
+                format!("{month} {d} '{yy:02}")
+            } else {
+                format!("{month} {d}")
+            }
+        }
+        Unit::Month => {
+            if new_year {
+                format!("{month} '{yy:02}")
+            } else {
+                month.to_string()
+            }
+        }
+        Unit::Quarter => {
+            let q = (mo - 1) / 3 + 1;
+            if new_year {
+                format!("Q{q} '{yy:02}")
+            } else {
+                format!("Q{q}")
+            }
+        }
+        Unit::Year => y.to_string(),
+    }
+}
+
+/// Invariant the wiring leans on: `ticks` is ordered and spans the domain
+/// exactly — `ticks[0].0 == domain[0]` and `ticks[last].0 == domain[1]`, in
+/// the fallback too (trivially, for a degenerate single tick). Task 3's
+/// Linear-scale wiring reproduces `accept`'s column arithmetic only because
+/// of this; it is a contract, not a coincidence.
+pub(crate) struct TemporalAxis {
+    /// Expanded to the enclosing boundaries (tight data extent under the
+    /// first-and-last fallback), in epoch ms. min == max yields the
+    /// zero-width domain [x, x]: consumers must guard before feeding it to
+    /// `Linear` (norm would be NaN), as the quantitative path already does
+    /// for degenerate spans.
+    pub domain: [f64; 2],
+    /// (position ms, label), positions on true calendar boundaries.
+    pub ticks: Vec<(f64, String)>,
+}
+
+/// Label the rung's ticks and test them under the same greedy rule
+/// `place_x_labels` applies downstream (gutter 0, width = plot_w): each
+/// label centered on its column, clamped inside the plot, one column of
+/// separation. Any collision rejects the whole RUNG, so the compile-side
+/// placement never drops a label this function accepted.
+fn accept(rung: Rung, ticks: &[i64], plot_w: usize) -> Option<TemporalAxis> {
+    let (lo, hi) = (ticks[0], ticks[ticks.len() - 1]);
+    let span = (hi - lo) as f64;
+    let mut labeled = Vec::with_capacity(ticks.len());
+    let mut next_free = 0usize;
+    let mut prev = None;
+    for &t in ticks {
+        let label = tick_label(rung.unit(), t, prev);
+        prev = Some(t);
+        let len = label.chars().count();
+        if len > plot_w {
+            return None;
+        }
+        let col =
+            ((((t - lo) as f64 / span) * (plot_w - 1) as f64).round() as usize).min(plot_w - 1);
+        let start = (1 + col).saturating_sub(len / 2).min(plot_w - len);
+        if start < next_free {
+            return None;
+        }
+        next_free = start + len + 1;
+        labeled.push((t as f64, label));
+    }
+    Some(TemporalAxis {
+        domain: [lo as f64, hi as f64],
+        ticks: labeled,
+    })
+}
+
+/// A temporal x axis: ticks on true calendar boundaries with context+delta
+/// labels, domain expanded outward to the enclosing boundaries. Walks the
+/// ladder finest to coarsest and accepts the first rung whose labels all
+/// fit `plot_w`; when none does, falls back to full-context first-and-last
+/// labels over the TIGHT data domain — the temporal twin of the linear
+/// two-endpoint fallback.
+///
+/// Callers must pass millis produced by `parse_temporal` (four-digit years,
+/// so |ms| <= ~2.6e14); synthetic astronomic millis (>= ~6.3e18) can
+/// overflow i64 in the year walk's closing boundary.
+pub(crate) fn temporal_axis(min_ms: f64, max_ms: f64, plot_w: usize) -> TemporalAxis {
+    let (min, max) = (min_ms as i64, max_ms as i64);
+    // n labels need at least 2n - 1 columns (each at least one char plus a
+    // column of separation), so a rung emitting more than plot_w / 2 + 1
+    // ticks can never fit — generation bails early.
+    let cap = plot_w / 2 + 1;
+    // A cap under MIN_TICKS admits no acceptable rung at all — and the year
+    // walk below would coarsen forever chasing a tick count the cap cannot
+    // let through: straight to the fallback.
+    if cap < MIN_TICKS {
+        return fallback(min_ms, max_ms);
+    }
+    for rung in LADDER {
+        let Some(ticks) = rung_ticks(rung, min, max, cap) else {
+            continue;
+        };
+        if ticks.len() < MIN_TICKS {
+            continue;
+        }
+        if let Some(axis) = accept(rung, &ticks, plot_w) {
+            return axis;
+        }
+    }
+    // Year rungs coarsen 1 -> 2 -> 5 -> 10 ... without a cap: a rung that
+    // overflows generation just coarsens (over a many-century span the
+    // fitting rung may still be far up the ladder). Termination: the tick
+    // count shrinks toward 2 as the step widens, and 2 passes the
+    // generation cap (cap >= MIN_TICKS here), so a `Some` under MIN_TICKS
+    // always arrives — and proves every coarser rung is under it too.
+    let mut n = 1;
+    loop {
+        match rung_ticks(Rung::Years(n), min, max, cap) {
+            Some(ticks) if ticks.len() < MIN_TICKS => break,
+            Some(ticks) => {
+                if let Some(axis) = accept(Rung::Years(n), &ticks, plot_w) {
+                    return axis;
+                }
+            }
+            None => {}
+        }
+        n = next_year_step(n);
+    }
+    fallback(min_ms, max_ms)
+}
+
+/// First-and-last fallback: ticks at the true data extremes, each with a
+/// full context label sized to the span — one tick when they coincide. The
+/// domain stays TIGHT; no boundary expansion.
+fn fallback(min_ms: f64, max_ms: f64) -> TemporalAxis {
+    let (min, max) = (min_ms as i64, max_ms as i64);
+    let unit = if max - min >= MS_PER_DAY {
+        Unit::Day
+    } else if max - min >= MS_PER_MIN {
+        Unit::Min
+    } else {
+        Unit::Sec
+    };
+    let mut ticks = vec![(min_ms, tick_label(unit, min, None))];
+    if max > min {
+        ticks.push((max_ms, tick_label(unit, max, None)));
+    }
+    TemporalAxis {
+        domain: [min_ms, max_ms],
+        ticks,
+    }
+}
+
+/// The next year step up the 1/2/5 ladder (1 -> 2 -> 5 -> 10 -> 20 ...).
+fn next_year_step(n: i64) -> i64 {
+    let mut pow = 1;
+    while n >= 10 * pow {
+        pow *= 10;
+    }
+    match n / pow {
+        1 => 2 * pow,
+        2 => 5 * pow,
+        _ => 10 * pow,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,6 +617,342 @@ mod tests {
         );
         // Time-only anchors to epoch day zero.
         assert_eq!(parse_temporal("14:30:00"), Some(noon as f64));
+    }
+
+    /// ISO-render a millisecond position through the module's own civil
+    /// math, so expected positions in the pins below are derived strings —
+    /// never hand-computed epoch millis. Midnight renders as a bare date.
+    fn iso(ms: f64) -> String {
+        let ms = ms as i64;
+        let (y, m, d) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+        let s = ms.rem_euclid(MS_PER_DAY) / 1000;
+        if s == 0 {
+            format!("{y:04}-{m:02}-{d:02}")
+        } else {
+            format!(
+                "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}",
+                s / 3600,
+                s / 60 % 60,
+                s % 60
+            )
+        }
+    }
+
+    /// Run `temporal_axis` over ISO endpoints; ISO-ify the ticks and domain.
+    fn axis(min: &str, max: &str, plot_w: usize) -> (Vec<(String, String)>, [String; 2]) {
+        let ax = temporal_axis(
+            parse_temporal(min).unwrap(),
+            parse_temporal(max).unwrap(),
+            plot_w,
+        );
+        (
+            ax.ticks.into_iter().map(|(t, l)| (iso(t), l)).collect(),
+            [iso(ax.domain[0]), iso(ax.domain[1])],
+        )
+    }
+
+    /// Whole-output pin: every (position, label) pair in order, plus the
+    /// returned domain.
+    fn assert_axis(
+        got: (Vec<(String, String)>, [String; 2]),
+        want_ticks: &[(&str, &str)],
+        want_domain: [&str; 2],
+    ) {
+        let ticks: Vec<(&str, &str)> = got
+            .0
+            .iter()
+            .map(|(p, l)| (p.as_str(), l.as_str()))
+            .collect();
+        assert_eq!(ticks, want_ticks);
+        assert_eq!(got.1, want_domain);
+    }
+
+    #[test]
+    fn temporal_axis_week_steps_expand_domain_to_mondays() {
+        // Jun 3..Jun 27 2026 at week steps: the domain expands outward to
+        // the surrounding Mondays (2026-06-01 is a Monday), and the first
+        // tick carries the year context.
+        assert_axis(
+            axis("2026-06-03", "2026-06-27", 72),
+            &[
+                ("2026-06-01", "Jun 1 '26"),
+                ("2026-06-08", "Jun 8"),
+                ("2026-06-15", "Jun 15"),
+                ("2026-06-22", "Jun 22"),
+                ("2026-06-29", "Jun 29"),
+            ],
+            ["2026-06-01", "2026-06-29"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_quarter_steps_year_rollover() {
+        // Two years of monthly data: quarter steps, year context at the
+        // first tick and again at each year rollover.
+        assert_axis(
+            axis("2025-01-01", "2026-12-01", 72),
+            &[
+                ("2025-01-01", "Q1 '25"),
+                ("2025-04-01", "Q2"),
+                ("2025-07-01", "Q3"),
+                ("2025-10-01", "Q4"),
+                ("2026-01-01", "Q1 '26"),
+                ("2026-04-01", "Q2"),
+                ("2026-07-01", "Q3"),
+                ("2026-10-01", "Q4"),
+                ("2027-01-01", "Q1 '27"),
+            ],
+            ["2025-01-01", "2027-01-01"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_six_hour_steps_day_rollover() {
+        // 24 hours starting on a 6h boundary: date context at the first
+        // tick and again when the civil day rolls over at midnight.
+        assert_axis(
+            axis("2026-06-14T06:00:00", "2026-06-15T06:00:00", 72),
+            &[
+                ("2026-06-14T06:00:00", "Jun 14 06:00"),
+                ("2026-06-14T12:00:00", "12:00"),
+                ("2026-06-14T18:00:00", "18:00"),
+                ("2026-06-15", "Jun 15 00:00"),
+                ("2026-06-15T06:00:00", "06:00"),
+            ],
+            ["2026-06-14T06:00:00", "2026-06-15T06:00:00"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_thirty_second_steps() {
+        // One minute of data: the 15-char context label "Jun 14 14:30:00"
+        // crowds out 15s steps even at 72 columns, so the ladder lands on
+        // 30s — pinning the seconds delta form.
+        assert_axis(
+            axis("2026-06-14T14:30:00", "2026-06-14T14:31:00", 72),
+            &[
+                ("2026-06-14T14:30:00", "Jun 14 14:30:00"),
+                ("2026-06-14T14:30:30", "14:30:30"),
+                ("2026-06-14T14:31:00", "14:31:00"),
+            ],
+            ["2026-06-14T14:30:00", "2026-06-14T14:31:00"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_thirty_minute_steps() {
+        // Ninety minutes of data: 15m steps collide with the 12-char
+        // context label at 72 columns, so the ladder lands on 30m —
+        // pinning the minutes delta form.
+        assert_axis(
+            axis("2026-06-14T14:30:00", "2026-06-14T16:00:00", 72),
+            &[
+                ("2026-06-14T14:30:00", "Jun 14 14:30"),
+                ("2026-06-14T15:00:00", "15:00"),
+                ("2026-06-14T15:30:00", "15:30"),
+                ("2026-06-14T16:00:00", "16:00"),
+            ],
+            ["2026-06-14T14:30:00", "2026-06-14T16:00:00"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_century_span_coarsens_past_cap() {
+        // Eight hundred years: every year rung through 20y exceeds the
+        // generation cap, and the walk must keep coarsening past those —
+        // never fall back — until 100y fits. No year cap; only the
+        // three-tick rule ends the ladder.
+        assert_axis(
+            axis("1600-01-01", "2400-01-01", 72),
+            &[
+                ("1600-01-01", "1600"),
+                ("1700-01-01", "1700"),
+                ("1800-01-01", "1800"),
+                ("1900-01-01", "1900"),
+                ("2000-01-01", "2000"),
+                ("2100-01-01", "2100"),
+                ("2200-01-01", "2200"),
+                ("2300-01-01", "2300"),
+                ("2400-01-01", "2400"),
+            ],
+            ["1600-01-01", "2400-01-01"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_degenerate_widths_fall_back() {
+        // Widths whose cap admits fewer than MIN_TICKS ticks can accept no
+        // rung: straight to the first-and-last fallback — pinned down to
+        // width zero, where the year walk once coarsened forever.
+        for w in [0, 1, 2] {
+            assert_axis(
+                axis("2026-06-03", "2026-06-27", w),
+                &[("2026-06-03", "Jun 3 '26"), ("2026-06-27", "Jun 27 '26")],
+                ["2026-06-03", "2026-06-27"],
+            );
+        }
+    }
+
+    #[test]
+    fn temporal_axis_single_instant_dedupes_fallback() {
+        // min == max: one fallback tick, not two identical ones.
+        assert_axis(
+            axis("2026-06-14T14:30:00", "2026-06-14T14:30:00", 12),
+            &[("2026-06-14T14:30:00", "Jun 14 14:30:00")],
+            ["2026-06-14T14:30:00", "2026-06-14T14:30:00"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_year_steps() {
+        // Six years: plain year labels, no context prefix to roll over.
+        assert_axis(
+            axis("2024-01-01", "2030-01-01", 72),
+            &[
+                ("2024-01-01", "2024"),
+                ("2025-01-01", "2025"),
+                ("2026-01-01", "2026"),
+                ("2027-01-01", "2027"),
+                ("2028-01-01", "2028"),
+                ("2029-01-01", "2029"),
+                ("2030-01-01", "2030"),
+            ],
+            ["2024-01-01", "2030-01-01"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_three_months_daily_coarsens_to_months() {
+        // Coarsening regression pin: over three months even week steps
+        // collide at 72 columns (the 9-char context label "Jun 1 '26"
+        // overlaps its 5-columns-away neighbor), so the ladder lands on
+        // months.
+        assert_axis(
+            axis("2026-06-01", "2026-08-31", 72),
+            &[
+                ("2026-06-01", "Jun '26"),
+                ("2026-07-01", "Jul"),
+                ("2026-08-01", "Aug"),
+                ("2026-09-01", "Sep"),
+            ],
+            ["2026-06-01", "2026-09-01"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_thirty_six_hours_coarsens_to_twelve_hours() {
+        // Coarsening regression pin: over 36 hours the 12-char context
+        // label "Jun 14 06:00" makes 6h steps collide at 72 columns, so
+        // the ladder lands on 12h.
+        assert_axis(
+            axis("2026-06-14T06:00:00", "2026-06-15T18:00:00", 72),
+            &[
+                ("2026-06-14", "Jun 14 00:00"),
+                ("2026-06-14T12:00:00", "12:00"),
+                ("2026-06-15", "Jun 15 00:00"),
+                ("2026-06-15T12:00:00", "12:00"),
+                ("2026-06-16", "Jun 16 00:00"),
+            ],
+            ["2026-06-14", "2026-06-16"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_narrow_plot_coarsens() {
+        // At 30 columns each range climbs the ladder further — and the week
+        // range finds NO rung with three fitting ticks (months over it give
+        // only two), so it falls back to first-and-last over the tight
+        // data domain.
+        assert_axis(
+            axis("2026-06-03", "2026-06-27", 30),
+            &[("2026-06-03", "Jun 3 '26"), ("2026-06-27", "Jun 27 '26")],
+            ["2026-06-03", "2026-06-27"],
+        );
+        assert_axis(
+            axis("2025-01-01", "2026-12-01", 30),
+            &[
+                ("2025-01-01", "2025"),
+                ("2026-01-01", "2026"),
+                ("2027-01-01", "2027"),
+            ],
+            ["2025-01-01", "2027-01-01"],
+        );
+        assert_axis(
+            axis("2026-06-14T06:00:00", "2026-06-15T06:00:00", 30),
+            &[
+                ("2026-06-14", "Jun 14 '26"),
+                ("2026-06-15", "Jun 15"),
+                ("2026-06-16", "Jun 16"),
+            ],
+            ["2026-06-14", "2026-06-16"],
+        );
+        assert_axis(
+            axis("2024-01-01", "2030-01-01", 30),
+            &[
+                ("2024-01-01", "2024"),
+                ("2026-01-01", "2026"),
+                ("2028-01-01", "2028"),
+                ("2030-01-01", "2030"),
+            ],
+            ["2024-01-01", "2030-01-01"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_tiny_plot_first_and_last_fallback() {
+        // At 12 columns no rung fits any of the four ranges: first-and-last
+        // ticks at the true data extremes, each with a FULL context label,
+        // and the domain stays tight (no boundary expansion).
+        assert_axis(
+            axis("2026-06-03", "2026-06-27", 12),
+            &[("2026-06-03", "Jun 3 '26"), ("2026-06-27", "Jun 27 '26")],
+            ["2026-06-03", "2026-06-27"],
+        );
+        assert_axis(
+            axis("2025-01-01", "2026-12-01", 12),
+            &[("2025-01-01", "Jan 1 '25"), ("2026-12-01", "Dec 1 '26")],
+            ["2025-01-01", "2026-12-01"],
+        );
+        assert_axis(
+            axis("2026-06-14T06:00:00", "2026-06-15T06:00:00", 12),
+            &[
+                ("2026-06-14T06:00:00", "Jun 14 '26"),
+                ("2026-06-15T06:00:00", "Jun 15 '26"),
+            ],
+            ["2026-06-14T06:00:00", "2026-06-15T06:00:00"],
+        );
+        assert_axis(
+            axis("2024-01-01", "2030-01-01", 12),
+            &[("2024-01-01", "Jan 1 '24"), ("2030-01-01", "Jan 1 '30")],
+            ["2024-01-01", "2030-01-01"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_sub_day_fallback_minute_context() {
+        // A sub-day span that fits no rung labels its fallback endpoints in
+        // the minute-datetime form.
+        assert_axis(
+            axis("2026-06-14T14:30:00", "2026-06-14T18:45:00", 12),
+            &[
+                ("2026-06-14T14:30:00", "Jun 14 14:30"),
+                ("2026-06-14T18:45:00", "Jun 14 18:45"),
+            ],
+            ["2026-06-14T14:30:00", "2026-06-14T18:45:00"],
+        );
+    }
+
+    #[test]
+    fn temporal_axis_sub_minute_fallback_second_context() {
+        // A sub-minute span keeps the seconds in its fallback labels.
+        assert_axis(
+            axis("2026-06-14T14:30:05", "2026-06-14T14:30:45", 12),
+            &[
+                ("2026-06-14T14:30:05", "Jun 14 14:30:05"),
+                ("2026-06-14T14:30:45", "Jun 14 14:30:45"),
+            ],
+            ["2026-06-14T14:30:05", "2026-06-14T14:30:45"],
+        );
     }
 
     #[test]
