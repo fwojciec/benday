@@ -57,6 +57,15 @@ series.**
 - `xOffset` stays rejected, but its error names the fix: "grouping is
   expressed with color alone".
 
+**Aggregate lives on the quantitative (value) channel.** Vertical bars:
+`y.aggregate`, exactly as today. Horizontal bars: `x.aggregate` — the value
+channel moved, the aggregate moves with it. The opposite placement is an
+error naming the rule ("aggregation runs over the quantitative channel,
+grouped by the categorical one"). `count` on the value channel works with
+the field otherwise absent from rows, mirroring today's y-count behavior.
+Because orientation is resolved from data-dependent types, these checks run
+after orientation resolution, not in the pure-spec validate pass.
+
 **Sort order stays SQL's job.** Nominal categories keep first-seen order —
 `ORDER BY volume DESC` in the query IS the ranking. Ordinal (declared dates,
 explicit type) keeps the lexical sort from the stdin cycle. benday adds no
@@ -69,11 +78,14 @@ nominal + `color` third-field = grouped horizontal.
 
 **Vertical grouped:** each category owns a slot of `plot_w / n_cats`
 columns; inside it, one bar per series member at ~70% of the slot split
-evenly, minimum 1 column each, a 1-column gap between groups. A series
-member absent from a category leaves its column empty — a visible gap at a
-stable position (group members keep the same offset in every group, so
-color and position both identify them). Legend below, exactly as
-multi-series lines render it.
+evenly, minimum 1 column each, and at least a 1-column gap preserved
+between groups. Groups must FIT: when `plot_w < n_cats × (n_series + 1)`
+the slots cannot hold one column per series plus the gap, and that is a
+loud error naming the required width — never an overlap into the neighbor
+slot. A series member absent from a category leaves its column empty — a
+visible gap at a stable position (group members keep the same offset in
+every group, so color and position both identify them). Legend below,
+exactly as multi-series lines render it.
 
 **Horizontal:** the axes swap jobs. The value axis is the bottom x axis and
 reuses today's quantitative x-tick code verbatim — ticks, greedy labels,
@@ -88,9 +100,13 @@ or raise --height"), never a squeeze into sub-row slivers. A safety cap
 
 **Scene:** `Bar {x0, w, h}` generalizes to a normalized rect
 `{x0, y0, w, h}` — vertical bars are `y0 = 1 − h`, horizontal are
-`x0 = 0, w = value`. One representation, both orientations; the
-rasterizer's bar fill becomes "fill this rect with dots" and stops knowing
-which way is up. This is the cycle's one rasterizer touch.
+`x0 = 0, w = value`. The `Bars` mark carries an explicit `direction`:
+dot fill is genuinely orientation-free (fill the rect), but block-style
+partial caps are not (bottom-up eighths vs left-anchored eighths), and
+rect anchors alone cannot distinguish a bottom-row horizontal bar
+(`x0 = 0` AND `y0 + h = 1`) from a vertical one — so the compiler states
+the direction rather than the rasterizer guessing. This is the cycle's one
+rasterizer touch.
 
 ## Palette cap, errors, meta
 
@@ -110,8 +126,12 @@ labeled) stays.
   "grouping is expressed with color alone" (the only way to beat
   `deny_unknown_fields`' generic message to a helpful one).
 - Negative values → still rejected for bars, both orientations.
+- Aggregate on the categorical channel → "aggregation runs over the
+  quantitative channel, grouped by the categorical one".
 - Content height over the ceiling → the count, the required height, and
   the three ways out.
+- Grouped width overflow → categories × series that cannot fit one column
+  per bar plus inter-group gaps names the required width.
 - Series over palette → the chrome cycle's message, verbatim.
 
 Grouped cells aggregate per (category, series) pair with the same default
