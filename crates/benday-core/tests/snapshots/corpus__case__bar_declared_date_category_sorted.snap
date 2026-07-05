@@ -1,0 +1,164 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 83,
+    "rows": 7
+  },
+  "plot": {
+    "x": 11,
+    "y": 0,
+    "w": 72,
+    "h": 5
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      2.0
+    ],
+    "step": 1.0,
+    "categories": [
+      "2026-01-01",
+      "2026-02-01",
+      "2026-03-01"
+    ],
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "2026-01-01",
+        "row": 0
+      },
+      {
+        "value": 1.0,
+        "frac": 0.5,
+        "label": "2026-02-01",
+        "row": 2
+      },
+      {
+        "value": 2.0,
+        "frac": 1.0,
+        "label": "2026-03-01",
+        "row": 4
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      8.0
+    ],
+    "tick_cols": [
+      0,
+      9,
+      18,
+      27,
+      36,
+      44,
+      53,
+      62,
+      71
+    ],
+    "labels": [
+      {
+        "text": "0",
+        "col": 11,
+        "row": 6
+      },
+      {
+        "text": "1",
+        "col": 20,
+        "row": 6
+      },
+      {
+        "text": "2",
+        "col": 29,
+        "row": 6
+      },
+      {
+        "text": "3",
+        "col": 38,
+        "row": 6
+      },
+      {
+        "text": "4",
+        "col": 47,
+        "row": 6
+      },
+      {
+        "text": "5",
+        "col": 55,
+        "row": 6
+      },
+      {
+        "text": "6",
+        "col": 64,
+        "row": 6
+      },
+      {
+        "text": "7",
+        "col": 73,
+        "row": 6
+      },
+      {
+        "text": "8",
+        "col": 82,
+        "row": 6
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 0.25,
+            "h": 0.2,
+            "color": "#00c3c4"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.4,
+            "w": 1.0,
+            "h": 0.2,
+            "color": "#ffc151"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.8,
+            "w": 0.625,
+            "h": 0.2,
+            "color": "#96d274"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "v",
+    "y_field": "d",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"v","type":"INT64"},{"name":"d","type":"DATE"}],"rows":[[5,"2026-03-01"],[2,"2026-01-01"],[8,"2026-02-01"]]},"mark":"bar","encoding":{"x":{"field":"v"},"y":{"field":"d"}}}

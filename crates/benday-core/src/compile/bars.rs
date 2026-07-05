@@ -134,9 +134,12 @@ pub(super) fn compile_bar(
     }
     // On the timeUnit path, DENSIFY: insert an empty cell for every calendar
     // bucket missing between the first and last data bucket (chronological =
-    // lexical by key construction, so this also supplies the sort). Otherwise an
-    // ordinal x (declared DATE/TIMESTAMP or an explicit ordinal type) sorts
-    // lexically; nominal keeps first-seen order.
+    // lexical by key construction, so this also supplies the sort). Otherwise
+    // only an explicit ordinal spec type sorts (lexically); nominal — and a
+    // PROMOTED temporal x, which the native routing rung sent here as a
+    // category axis (first-seen order pinned by bar_promoted_string_nominal) —
+    // keeps first-seen order. Declared/explicit temporal never reaches this
+    // arm: bar_route rejects it without a timeUnit.
     let mut dense_ms: Vec<f64> = Vec::new();
     if let (Some(unit), Some((min_ms, max_ms))) = (time_unit, dense_range) {
         // Guard BEFORE materializing: a fine unit over a long span (a month of
@@ -299,9 +302,15 @@ fn compile_bar_grouped(
         return Err(no_rows_error(yf, xf));
     }
 
-    // Ordinal x sorts its categories lexically (declared DATE/TIMESTAMP or an
-    // explicit ordinal type); series order stays first-seen.
-    if resolved_type(&spec.encoding.x, table) == FieldType::Ordinal {
+    // An explicit ordinal x sorts its categories lexically, and so does a
+    // temporal one — lexical ISO order IS chronological. (Here temporal means
+    // PROMOTED strings only: declared/explicit temporal x is rejected upstream
+    // by bar_route without buckets, and timeUnit+color is rejected before this
+    // path.) Series order stays first-seen.
+    if matches!(
+        resolved_type(&spec.encoding.x, table),
+        FieldType::Ordinal | FieldType::Temporal
+    ) {
         (cats, raw_cells) = sort_cats(cats, raw_cells);
     }
 
@@ -465,9 +474,15 @@ pub(super) fn compile_bar_h(
     if cats.is_empty() {
         return Err(no_rows_error(xf, yf));
     }
-    // Ordinal y (declared DATE/TIMESTAMP or an explicit ordinal spec type) sorts
-    // its categories lexically; nominal keeps first-seen (ranking) order.
-    if resolved_type(&spec.encoding.y, table) == FieldType::Ordinal {
+    // An explicit ordinal y sorts its categories lexically, and so does a
+    // temporal one (declared DATE/TIMESTAMP, explicit spec type, or promoted
+    // ISO strings) — lexical ISO order IS chronological, so a date category
+    // axis stays a timeline however the rows arrive. Nominal keeps first-seen
+    // (ranking) order.
+    if matches!(
+        resolved_type(&spec.encoding.y, table),
+        FieldType::Ordinal | FieldType::Temporal
+    ) {
         (cats, cells) = sort_cats(cats, cells);
     }
     // Raw per-category value counts, for --meta.
@@ -619,9 +634,14 @@ fn compile_bar_h_grouped(
         return Err(no_rows_error(xf, yf));
     }
 
-    // Ordinal y (declared DATE/TIMESTAMP or an explicit ordinal type) sorts its
-    // categories lexically; series order stays first-seen.
-    if resolved_type(&spec.encoding.y, table) == FieldType::Ordinal {
+    // An explicit ordinal y sorts its categories lexically, and so does a
+    // temporal one (declared DATE/TIMESTAMP, explicit spec type, or promoted
+    // ISO strings) — lexical ISO order IS chronological. Series order stays
+    // first-seen.
+    if matches!(
+        resolved_type(&spec.encoding.y, table),
+        FieldType::Ordinal | FieldType::Temporal
+    ) {
         (cats, raw_cells) = sort_cats(cats, raw_cells);
     }
 
