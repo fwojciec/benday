@@ -90,14 +90,16 @@ pub fn parse_data_doc(s: &str) -> Result<DataDoc, Error> {
 /// Map a declared column type (BigQuery + common SQL spellings, case-
 /// insensitive) to a field type. Unknown names fall back to nominal — NOT an
 /// error: producers grow types, and nominal is safe-wrong-in-the-obvious-way.
-/// DATE/TIMESTAMP map to ordinal BY DESIGN, not as an interim step: ISO
-/// strings sort lexically = chronologically, and SQL owns date bucketing and
-/// label formatting — benday has no temporal scale on the roadmap.
+/// DATE/DATETIME/TIMESTAMP/TIME map to temporal: benday now owns time layout
+/// (true positions on a calendar scale) when SQL is absent — see
+/// docs/plans/2026-07-05-temporal-family-design.md for why this reverses the
+/// old "no temporal scale" doctrine. An explicit `"ordinal"` on the encoding
+/// restores the evenly-spaced behavior per chart.
 pub fn declared_field_type(t: &str) -> FieldType {
     match t.to_ascii_uppercase().as_str() {
         "INT64" | "INTEGER" | "INT" | "SMALLINT" | "BIGINT" | "FLOAT64" | "FLOAT" | "DOUBLE"
         | "NUMERIC" | "BIGNUMERIC" | "DECIMAL" | "REAL" => FieldType::Quantitative,
-        "DATE" | "DATETIME" | "TIMESTAMP" | "TIME" => FieldType::Ordinal,
+        "DATE" | "DATETIME" | "TIMESTAMP" | "TIME" => FieldType::Temporal,
         _ => FieldType::Nominal,
     }
 }
@@ -445,9 +447,9 @@ mod tests {
         ] {
             assert_eq!(declared_field_type(t), FieldType::Quantitative, "{t}");
         }
-        // Date/time spellings map to ordinal this cycle.
+        // Date/time spellings map to temporal.
         for t in ["DATE", "DATETIME", "TIMESTAMP", "TIME"] {
-            assert_eq!(declared_field_type(t), FieldType::Ordinal, "{t}");
+            assert_eq!(declared_field_type(t), FieldType::Temporal, "{t}");
         }
         // Strings and unknowns fall back to nominal.
         assert_eq!(declared_field_type("STRING"), FieldType::Nominal);
@@ -455,7 +457,7 @@ mod tests {
         assert_eq!(declared_field_type("whatever"), FieldType::Nominal);
         // Case-insensitive.
         assert_eq!(declared_field_type("int64"), FieldType::Quantitative);
-        assert_eq!(declared_field_type("Date"), FieldType::Ordinal);
+        assert_eq!(declared_field_type("Date"), FieldType::Temporal);
         assert_eq!(declared_field_type("String"), FieldType::Nominal);
     }
 }

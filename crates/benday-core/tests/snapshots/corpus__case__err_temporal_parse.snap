@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): row 1: could not parse "not-a-date" as temporal in column "t"; accepted: "2026-07-05", "2026-07-05T14:30:00" (or a space instead of T, optional .fff), either with a trailing "Z" or "±hh:mm" offset, or a bare "14:30:00"

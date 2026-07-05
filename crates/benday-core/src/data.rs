@@ -43,22 +43,42 @@ pub fn check_field(rows: &[Row], field: &str) -> Result<(), Error> {
     )))
 }
 
-/// Quantitative iff every present, non-null value coerces to a number.
+/// Infer a field's type from its present, non-null values. All coerce to a
+/// number → Quantitative; else all are temporal strings (`time::parse_temporal`
+/// accepts them) → Temporal; else Nominal. Promotion is all-or-nothing: one
+/// value that is neither drops the whole column to Nominal — a column mixing
+/// dates and numbers is Nominal, no partial parsing (temporal-family design).
 pub fn infer_type(rows: &[Row], field: &str) -> FieldType {
     let mut saw_value = false;
+    let mut all_numeric = true;
+    let mut all_temporal = true;
     for row in rows {
         if let Some(v) = row.get(field) {
             if v.is_null() {
                 continue;
             }
             saw_value = true;
-            if num(v).is_none() {
-                return FieldType::Nominal;
+            // Each predicate runs only while its flag still stands — a
+            // falsified flag stops paying for its check.
+            if all_numeric && num(v).is_none() {
+                all_numeric = false;
+            }
+            if all_temporal
+                && !matches!(v, Value::String(s) if crate::time::parse_temporal(s).is_some())
+            {
+                all_temporal = false;
+            }
+            if !all_numeric && !all_temporal {
+                break; // Nominal is already decided.
             }
         }
     }
-    if saw_value {
+    if !saw_value {
+        FieldType::Nominal
+    } else if all_numeric {
         FieldType::Quantitative
+    } else if all_temporal {
+        FieldType::Temporal
     } else {
         FieldType::Nominal
     }

@@ -1,0 +1,122 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 75,
+    "rows": 15
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      10.0,
+      25.0
+    ],
+    "step": 5.0,
+    "ticks": [
+      {
+        "value": 10.0,
+        "frac": 0.0,
+        "label": "10",
+        "row": 12
+      },
+      {
+        "value": 15.0,
+        "frac": 0.3333333333333333,
+        "label": "15",
+        "row": 8
+      },
+      {
+        "value": 20.0,
+        "frac": 0.6666666666666666,
+        "label": "20",
+        "row": 4
+      },
+      {
+        "value": 25.0,
+        "frac": 1.0,
+        "label": "25",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "2026-03-01",
+      "2026-03-15",
+      "2026-04-01"
+    ],
+    "domain": null,
+    "tick_cols": [
+      0,
+      36,
+      71
+    ],
+    "labels": [
+      {
+        "text": "2026-03-01",
+        "col": 0,
+        "row": 14
+      },
+      {
+        "text": "2026-03-15",
+        "col": 34,
+        "row": 14
+      },
+      {
+        "text": "2026-04-01",
+        "col": 65,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Path": {
+        "series": {
+          "name": null,
+          "color": "#00d5ef"
+        },
+        "points": [
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.5,
+            0.0
+          ],
+          [
+            1.0,
+            0.4666666666666667
+          ]
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "line",
+    "x_field": "d",
+    "y_field": "v",
+    "aggregate": null,
+    "series_points": [
+      3
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

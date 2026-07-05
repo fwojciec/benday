@@ -5,11 +5,6 @@
 //! Conversion between civil dates and epoch days uses Howard Hinnant's
 //! `days_from_civil` / `civil_from_days` algorithms. No timezone database,
 //! no locale, no clock — this module never calls `now()`.
-//!
-//! Nothing outside this module reads these functions yet — the compiler wires
-//! them in later tasks of the temporal family — so the item lints are relaxed
-//! for the non-test build.
-#![cfg_attr(not(test), allow(dead_code))]
 
 const MS_PER_DAY: i64 = 86_400_000;
 const MS_PER_HOUR: i64 = 3_600_000;
@@ -191,6 +186,30 @@ pub(crate) fn parse_temporal(s: &str) -> Option<f64> {
         return None; // trailing junk
     }
     Some((days * MS_PER_DAY + ms - offset) as f64)
+}
+
+/// Render an epoch-millis instant as an ISO string for `--meta`: a bare date
+/// at midnight, `T`-joined datetime otherwise, with `.fff` only when the
+/// millisecond remainder is non-zero. The inverse shape of `parse_temporal`
+/// on the values the temporal axis actually reports (calendar boundaries or
+/// true data extremes), so a caller reading `--meta` sees back what it fed in.
+pub(crate) fn format_iso(ms: f64) -> String {
+    let ms = ms as i64;
+    let (y, m, d) = civil_from_days(ms.div_euclid(MS_PER_DAY));
+    let rem = ms.rem_euclid(MS_PER_DAY);
+    let (hh, mi, ss, milli) = (
+        rem / MS_PER_HOUR,
+        rem / MS_PER_MIN % 60,
+        rem / MS_PER_SEC % 60,
+        rem % MS_PER_SEC,
+    );
+    if rem == 0 {
+        format!("{y:04}-{m:02}-{d:02}")
+    } else if milli == 0 {
+        format!("{y:04}-{m:02}-{d:02}T{hh:02}:{mi:02}:{ss:02}")
+    } else {
+        format!("{y:04}-{m:02}-{d:02}T{hh:02}:{mi:02}:{ss:02}.{milli:03}")
+    }
 }
 
 /// The label class of a ladder rung: which delta form its ticks show and
@@ -386,8 +405,9 @@ fn tick_label(unit: Unit, ms: i64, prev: Option<i64>) -> String {
 
 /// Invariant the wiring leans on: `ticks` is ordered and spans the domain
 /// exactly — `ticks[0].0 == domain[0]` and `ticks[last].0 == domain[1]`, in
-/// the fallback too (trivially, for a degenerate single tick). Task 3's
-/// Linear-scale wiring reproduces `accept`'s column arithmetic only because
+/// the fallback too (trivially, for a degenerate single tick). The compile
+/// side maps ticks to columns with `compile::x_col` over a Linear built from
+/// this domain, which reproduces `accept`'s column arithmetic only because
 /// of this; it is a contract, not a coincidence.
 pub(crate) struct TemporalAxis {
     /// Expanded to the enclosing boundaries (tight data extent under the
@@ -403,8 +423,10 @@ pub(crate) struct TemporalAxis {
 /// Label the rung's ticks and test them under the same greedy rule
 /// `place_x_labels` applies downstream (gutter 0, width = plot_w): each
 /// label centered on its column, clamped inside the plot, one column of
-/// separation. Any collision rejects the whole RUNG, so the compile-side
-/// placement never drops a label this function accepted.
+/// separation. The column formula below is `compile::x_col` with the norm
+/// inlined over this rung's own domain — keep the two in lockstep. Any
+/// collision rejects the whole RUNG, so the compile-side placement never
+/// drops a label this function accepted.
 fn accept(rung: Rung, ticks: &[i64], plot_w: usize) -> Option<TemporalAxis> {
     let (lo, hi) = (ticks[0], ticks[ticks.len() - 1]);
     let span = (hi - lo) as f64;
@@ -953,6 +975,23 @@ mod tests {
             ],
             ["2026-06-14T14:30:05", "2026-06-14T14:30:45"],
         );
+    }
+
+    #[test]
+    fn format_iso_round_trips_the_shapes() {
+        // format_iso is the meta-facing inverse of parse_temporal across the
+        // three render shapes: bare date at midnight, T-joined datetime, and
+        // datetime with a millisecond remainder.
+        for s in [
+            "2026-07-05",
+            "2026-07-05T14:30:00",
+            "2026-07-05T14:30:00.123",
+            "1600-01-01",
+            "2400-12-31T23:59:59",
+        ] {
+            let ms = parse_temporal(s).expect("parses");
+            assert_eq!(format_iso(ms), s, "round-trip {s}");
+        }
     }
 
     #[test]

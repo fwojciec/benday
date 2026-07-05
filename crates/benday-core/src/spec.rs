@@ -92,6 +92,10 @@ pub enum FieldType {
     Quantitative,
     Nominal,
     Ordinal,
+    /// Continuous time: positioned at true instants on a calendar scale (see
+    /// docs/plans/2026-07-05-temporal-family-design.md). An explicit
+    /// `"ordinal"` restores evenly-spaced categorical behavior.
+    Temporal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

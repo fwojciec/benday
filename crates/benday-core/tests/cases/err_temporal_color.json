@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"x","type":"INT64"},{"name":"y","type":"INT64"},{"name":"c","type":"DATE"}],"rows":[[1,2,"2026-01-01"],[2,3,"2026-01-02"]]},"mark":"line","encoding":{"x":{"field":"x"},"y":{"field":"y"},"color":{"field":"c"}}}

@@ -1,0 +1,130 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 76,
+    "rows": 15
+  },
+  "plot": {
+    "x": 4,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      3.0,
+      5.0
+    ],
+    "step": 0.5,
+    "ticks": [
+      {
+        "value": 3.0,
+        "frac": 0.0,
+        "label": "3.0",
+        "row": 12
+      },
+      {
+        "value": 3.5,
+        "frac": 0.25,
+        "label": "3.5",
+        "row": 9
+      },
+      {
+        "value": 4.0,
+        "frac": 0.5,
+        "label": "4.0",
+        "row": 6
+      },
+      {
+        "value": 4.5,
+        "frac": 0.75,
+        "label": "4.5",
+        "row": 3
+      },
+      {
+        "value": 5.0,
+        "frac": 1.0,
+        "label": "5.0",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      1767571200000.0,
+      1767830400000.0
+    ],
+    "tick_cols": [
+      0,
+      24,
+      47,
+      71
+    ],
+    "labels": [
+      {
+        "text": "Jan 5 '26",
+        "col": 0,
+        "row": 14
+      },
+      {
+        "text": "Jan 6",
+        "col": 26,
+        "row": 14
+      },
+      {
+        "text": "Jan 7",
+        "col": 49,
+        "row": 14
+      },
+      {
+        "text": "Jan 8",
+        "col": 71,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Path": {
+        "series": {
+          "name": null,
+          "color": "#00d5ef"
+        },
+        "points": [
+          [
+            0.0,
+            1.0
+          ],
+          [
+            1.0,
+            0.0
+          ]
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 1,
+  "source": {
+    "mark": "line",
+    "x_field": "d",
+    "y_field": "v",
+    "aggregate": null,
+    "x_type": "temporal",
+    "series_points": [
+      2
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

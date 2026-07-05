@@ -1,0 +1,160 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 77,
+    "rows": 15
+  },
+  "plot": {
+    "x": 5,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      500.0,
+      3500.0
+    ],
+    "step": 500.0,
+    "ticks": [
+      {
+        "value": 500.0,
+        "frac": 0.0,
+        "label": "500",
+        "row": 12
+      },
+      {
+        "value": 1000.0,
+        "frac": 0.16666666666666666,
+        "label": "1000",
+        "row": 10
+      },
+      {
+        "value": 1500.0,
+        "frac": 0.3333333333333333,
+        "label": "1500",
+        "row": 8
+      },
+      {
+        "value": 2000.0,
+        "frac": 0.5,
+        "label": "2000",
+        "row": 6
+      },
+      {
+        "value": 2500.0,
+        "frac": 0.6666666666666666,
+        "label": "2500",
+        "row": 4
+      },
+      {
+        "value": 3000.0,
+        "frac": 0.8333333333333334,
+        "label": "3000",
+        "row": 2
+      },
+      {
+        "value": 3500.0,
+        "frac": 1.0,
+        "label": "3500",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      1767571200000.0,
+      1769990400000.0
+    ],
+    "tick_cols": [
+      0,
+      18,
+      36,
+      53,
+      71
+    ],
+    "labels": [
+      {
+        "text": "Jan 5 '26",
+        "col": 1,
+        "row": 14
+      },
+      {
+        "text": "Jan 12",
+        "col": 20,
+        "row": 14
+      },
+      {
+        "text": "Jan 19",
+        "col": 38,
+        "row": 14
+      },
+      {
+        "text": "Jan 26",
+        "col": 55,
+        "row": 14
+      },
+      {
+        "text": "Feb 2",
+        "col": 72,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Path": {
+        "series": {
+          "name": null,
+          "color": "#00d5ef"
+        },
+        "points": [
+          [
+            0.0,
+            0.7666666666666666
+          ],
+          [
+            0.03571428571428571,
+            0.6666666666666667
+          ],
+          [
+            0.10714285714285714,
+            0.9
+          ],
+          [
+            0.35714285714285715,
+            0.033333333333333326
+          ],
+          [
+            1.0,
+            0.4666666666666667
+          ]
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "line",
+    "x_field": "t",
+    "y_field": "n",
+    "aggregate": null,
+    "x_type": "temporal",
+    "series_points": [
+      5
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

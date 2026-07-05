@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): mark Line resolved y field "t" as temporal, but y must be quantitative; put "t" on encoding.x (time belongs on x), or aggregate it (e.g. count) for a quantitative y

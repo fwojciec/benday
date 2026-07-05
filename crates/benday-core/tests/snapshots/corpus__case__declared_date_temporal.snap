@@ -1,0 +1,140 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 74,
+    "rows": 15
+  },
+  "plot": {
+    "x": 2,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      2.0,
+      8.0
+    ],
+    "step": 1.0,
+    "ticks": [
+      {
+        "value": 2.0,
+        "frac": 0.0,
+        "label": "2",
+        "row": 12
+      },
+      {
+        "value": 3.0,
+        "frac": 0.16666666666666666,
+        "label": "3",
+        "row": 10
+      },
+      {
+        "value": 4.0,
+        "frac": 0.3333333333333333,
+        "label": "4",
+        "row": 8
+      },
+      {
+        "value": 5.0,
+        "frac": 0.5,
+        "label": "5",
+        "row": 6
+      },
+      {
+        "value": 6.0,
+        "frac": 0.6666666666666666,
+        "label": "6",
+        "row": 4
+      },
+      {
+        "value": 7.0,
+        "frac": 0.8333333333333334,
+        "label": "7",
+        "row": 2
+      },
+      {
+        "value": 8.0,
+        "frac": 1.0,
+        "label": "8",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      1704067200000.0,
+      1709251200000.0
+    ],
+    "tick_cols": [
+      0,
+      37,
+      71
+    ],
+    "labels": [
+      {
+        "text": "Jan '24",
+        "col": 0,
+        "row": 14
+      },
+      {
+        "text": "Feb",
+        "col": 38,
+        "row": 14
+      },
+      {
+        "text": "Mar",
+        "col": 71,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Path": {
+        "series": {
+          "name": null,
+          "color": "#00d5ef"
+        },
+        "points": [
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.5166666666666667,
+            0.0
+          ],
+          [
+            1.0,
+            0.5
+          ]
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "line",
+    "x_field": "d",
+    "y_field": "v",
+    "aggregate": null,
+    "x_type": "temporal",
+    "series_points": [
+      3
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

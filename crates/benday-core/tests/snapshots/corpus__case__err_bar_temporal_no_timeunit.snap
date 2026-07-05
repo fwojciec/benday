@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): bars need discrete time buckets; add `"timeUnit": "day"` (or week/month/…) — or use `line`/`point` for continuous time

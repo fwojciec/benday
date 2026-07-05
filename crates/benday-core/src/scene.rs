@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crate::ingest::DataSource;
 use crate::raster::Rgb;
-use crate::spec::{Aggregate, Mark};
+use crate::spec::{Aggregate, FieldType, Mark};
 
 #[derive(Serialize)]
 pub struct Scene {
@@ -158,6 +158,12 @@ pub struct Source {
     pub x_field: String,
     pub y_field: String,
     pub aggregate: Option<Aggregate>,
+    /// The resolved x type, set to `Some(Temporal)` ONLY by the temporal xy
+    /// path and `None` everywhere else — so `meta()` can tell a temporal x
+    /// (ISO domain) from a quantitative one, and every non-temporal snapshot
+    /// stays byte-identical (skipped when None).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x_type: Option<FieldType>,
     /// Points-per-series counts etc. needed to reproduce --meta exactly.
     pub series_points: Vec<usize>,
     /// Data provenance (from `Table::provenance`). Drives the conditional
@@ -252,11 +258,22 @@ impl Scene {
                 base
             }
             Mark::Line | Mark::Point | Mark::Area => {
-                // x type/domain: nominal reports its category list, quantitative
-                // its numeric [min, max]. Series (name/color/count) come from the
-                // marks, in first-seen order.
+                // x type/domain: nominal reports its category list; temporal its
+                // domain as ISO strings (never raw millis — meta must not lie);
+                // quantitative its numeric [min, max]. Series (name/color/count)
+                // come from the marks, in first-seen order.
                 let (x_type, x_domain) = match &self.x_axis.categories {
                     Some(cats) => ("nominal", json!(cats)),
+                    None if self.source.x_type == Some(FieldType::Temporal) => {
+                        let d = self
+                            .x_axis
+                            .domain
+                            .expect("temporal x carries a numeric domain");
+                        (
+                            "temporal",
+                            json!([crate::time::format_iso(d[0]), crate::time::format_iso(d[1]),]),
+                        )
+                    }
                     None => ("quantitative", json!(self.x_axis.domain)),
                 };
                 let series: Vec<serde_json::Value> = self
@@ -405,6 +422,7 @@ mod tests {
                 x_field: "cat".to_string(),
                 y_field: "val".to_string(),
                 aggregate: None,
+                x_type: None,
                 series_points: vec![2],
                 data_source: DataSource::InlineValues,
                 truncated: None,

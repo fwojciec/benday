@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): encoding.color field "c" resolved as temporal; color would split into one series per timestamp — group by a categorical field instead (or bucket time with a phase-2 `timeUnit`)

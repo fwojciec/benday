@@ -174,7 +174,15 @@ fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
             .or_else(|| table.declared.get(f).copied())
             .unwrap_or_else(|| native_type(rows, f))
     };
-    let x_quant = resolve(&spec.encoding.x, xf) == FieldType::Quantitative;
+    let xt = resolve(&spec.encoding.x, xf);
+    // A temporal x is the category axis of a bar that has no buckets yet; native
+    // inference never yields Temporal, so this fires only for a declared/explicit
+    // temporal x (the x-count case already routed horizontal above). `timeUnit`
+    // (task 4) supplies the buckets; until then, name the fix.
+    if xt == FieldType::Temporal {
+        return Err(bar_temporal_error());
+    }
+    let x_quant = xt == FieldType::Quantitative;
     let y_quant = resolve(&spec.encoding.y, yf) == FieldType::Quantitative;
     match (x_quant, y_quant) {
         (false, true) => Ok(BarRoute::Vertical),
@@ -340,6 +348,47 @@ fn height_ceiling_error(n_bars: usize, content: usize) -> Error {
     ))
 }
 
+/// A `bar` with a temporal x, which has no discrete buckets to draw. The exact
+/// string is pinned by the design: `timeUnit` (task 4) is the fix it names.
+fn bar_temporal_error() -> Error {
+    Error::Spec(
+        "bars need discrete time buckets; add `\"timeUnit\": \"day\"` (or week/month/…) \
+         — or use `line`/`point` for continuous time"
+            .into(),
+    )
+}
+
+/// Temporal on the y channel: time belongs on x, so name the resolved type and
+/// the two fixes instead of falling through to the generic categorical-y error.
+fn temporal_y_error(mark: Mark, field: &str) -> Error {
+    Error::Data(format!(
+        "mark {mark:?} resolved y field \"{field}\" as temporal, but y must be quantitative; \
+         put \"{field}\" on encoding.x (time belongs on x), or aggregate it (e.g. count) for a \
+         quantitative y"
+    ))
+}
+
+/// Temporal on the color channel: rejected before it explodes into one series
+/// per timestamp. Suggests a categorical grouping field.
+fn temporal_color_error(field: &str) -> Error {
+    Error::Data(format!(
+        "encoding.color field \"{field}\" resolved as temporal; color would split into one \
+         series per timestamp — group by a categorical field instead (or bucket time with a \
+         phase-2 `timeUnit`)"
+    ))
+}
+
+/// An unparseable value in a resolved-temporal x column. Names the row, the
+/// offending string, and the four accepted shapes — a promoted column parses
+/// by construction, so this fires only for declared/explicit temporal types.
+fn temporal_parse_error(row: usize, value: &str, field: &str) -> Error {
+    Error::Data(format!(
+        "row {row}: could not parse \"{value}\" as temporal in column \"{field}\"; accepted: \
+         \"2026-07-05\", \"2026-07-05T14:30:00\" (or a space instead of T, optional .fff), either \
+         with a trailing \"Z\" or \"±hh:mm\" offset, or a bare \"14:30:00\""
+    ))
+}
+
 /// One pass over the rows for ANY bar variant: categories (first-seen) down
 /// one dimension, series (first-seen; one unnamed series when `series_field`
 /// is None) down the other, each cell the raw values awaiting aggregation.
@@ -470,6 +519,15 @@ pub fn compile(spec: &Spec, table: &Table, opts: &CompileOptions) -> Result<Scen
     }
 }
 
+/// Map a scale value to its plot-relative x column: norm over `plot_w - 1`
+/// columns, half-up rounding, clamped to the last column. The ONE column
+/// arithmetic for every x tick — quantitative, temporal, and nominal axes all
+/// route through here, and `time::accept` pre-tests temporal rungs against
+/// this exact formula (see its doc); changing it in one place is the point.
+fn x_col(xscale: &Linear, v: f64, plot_w: usize) -> usize {
+    ((xscale.norm(v) * (plot_w - 1) as f64).round() as usize).min(plot_w - 1)
+}
+
 /// A quantitative x value axis: plot-relative tick columns plus greedily-placed
 /// tick labels. Extracted from `compile_xy`'s quantitative-x branch so the
 /// horizontal-bar value axis and the line/point/area value axis share ONE
@@ -483,10 +541,7 @@ fn value_axis_x(
     label_row: usize,
 ) -> (Vec<usize>, Vec<Placed>) {
     let tks = xscale.ticks();
-    let tick_cols: Vec<usize> = tks
-        .iter()
-        .map(|t| ((xscale.norm(*t) * (plot_w - 1) as f64).round() as usize).min(plot_w - 1))
-        .collect();
+    let tick_cols: Vec<usize> = tks.iter().map(|t| x_col(xscale, *t, plot_w)).collect();
     let anchors: Vec<(usize, String)> = tick_cols
         .iter()
         .zip(&tks)
@@ -538,6 +593,13 @@ fn legend_below(
 /// column, clamped inside the buffer, skipped if it would collide with the one
 /// before it. Mirrors the old `draw_x_axis`; survivors carry buffer-absolute
 /// start columns.
+///
+/// `time::accept` is the temporal-axis mirror of this rule, run at gutter 0 and
+/// width `plot_w` to pre-test a candidate tick rung: it is deliberately STRICTER
+/// (a whole-rung reject, its right clamp one column tighter), so any rung it
+/// accepts survives here at any y-gutter — the shift by `gutter` only loosens
+/// spacing, never tightens it. Diverge one from the other and temporal ticks
+/// silently drop their labels; keep the arithmetic in lockstep.
 fn place_x_labels(
     anchors: &[(usize, String)],
     gutter: usize,
