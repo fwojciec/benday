@@ -21,8 +21,10 @@ use crate::scene::{
 use crate::spec::{Aggregate, FieldType, Mark, Spec};
 use crate::theme::Theme;
 
-const DEFAULT_WIDTH: usize = 60;
-const DEFAULT_HEIGHT: usize = 10;
+// 12 row-intervals divide evenly by 2/3/4/6 for the row-aligned tick search;
+// width 72 plus the axis gutter stays under 80 columns.
+const DEFAULT_WIDTH: usize = 72;
+const DEFAULT_HEIGHT: usize = 13;
 
 pub struct CompileOptions {
     pub width: Option<usize>,

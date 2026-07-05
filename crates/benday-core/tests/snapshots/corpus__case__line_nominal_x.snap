@@ -4,14 +4,14 @@ expression: snapshot
 ---
 {
   "size": {
-    "columns": 63,
-    "rows": 12
+    "columns": 75,
+    "rows": 15
   },
   "plot": {
     "x": 3,
     "y": 0,
-    "w": 60,
-    "h": 10
+    "w": 72,
+    "h": 13
   },
   "chrome": {
     "axis": "#6a707a",
@@ -21,16 +21,34 @@ expression: snapshot
   "legend": [],
   "y_axis": {
     "domain": [
-      5.0,
+      0.0,
       40.0
     ],
-    "step": 35.0,
+    "step": 10.0,
     "ticks": [
       {
-        "value": 5.0,
+        "value": 0.0,
         "frac": 0.0,
-        "label": "5",
+        "label": "0",
+        "row": 12
+      },
+      {
+        "value": 10.0,
+        "frac": 0.25,
+        "label": "10",
         "row": 9
+      },
+      {
+        "value": 20.0,
+        "frac": 0.5,
+        "label": "20",
+        "row": 6
+      },
+      {
+        "value": 30.0,
+        "frac": 0.75,
+        "label": "30",
+        "row": 3
       },
       {
         "value": 40.0,
@@ -49,24 +67,24 @@ expression: snapshot
     "domain": null,
     "tick_cols": [
       0,
-      30,
-      59
+      36,
+      71
     ],
     "labels": [
       {
         "text": "open",
         "col": 1,
-        "row": 11
+        "row": 14
       },
       {
         "text": "click",
-        "col": 31,
-        "row": 11
+        "col": 37,
+        "row": 14
       },
       {
         "text": "buy",
-        "col": 60,
-        "row": 11
+        "col": 72,
+        "row": 14
       }
     ]
   },
@@ -84,11 +102,11 @@ expression: snapshot
           ],
           [
             0.5,
-            0.5142857142857142
+            0.44999999999999996
           ],
           [
             1.0,
-            0.9142857142857143
+            0.8
           ]
         ]
       }

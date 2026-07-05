@@ -42,11 +42,11 @@ struct Cli {
     #[arg(long, value_name = "PATH", conflicts_with = "spec")]
     spec_file: Option<std::path::PathBuf>,
 
-    /// Plot area width in terminal cells (overrides spec.width; default 60)
+    /// Plot area width in terminal cells (overrides spec.width; default 72)
     #[arg(long)]
     width: Option<usize>,
 
-    /// Plot area height in terminal cells (overrides spec.height; default 10)
+    /// Plot area height in terminal cells (overrides spec.height; default 13)
     #[arg(long)]
     height: Option<usize>,
 

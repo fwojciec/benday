@@ -4,14 +4,14 @@ expression: snapshot
 ---
 {
   "size": {
-    "columns": 63,
-    "rows": 12
+    "columns": 75,
+    "rows": 15
   },
   "plot": {
     "x": 3,
     "y": 0,
-    "w": 60,
-    "h": 10
+    "w": 72,
+    "h": 13
   },
   "chrome": {
     "axis": "#6a707a",
@@ -30,19 +30,19 @@ expression: snapshot
         "value": 0.0,
         "frac": 0.0,
         "label": "0",
-        "row": 9
+        "row": 12
       },
       {
         "value": 5.0,
         "frac": 0.3333333333333333,
         "label": "5",
-        "row": 6
+        "row": 8
       },
       {
         "value": 10.0,
         "frac": 0.6666666666666666,
         "label": "10",
-        "row": 3
+        "row": 4
       },
       {
         "value": 15.0,
@@ -62,13 +62,13 @@ expression: snapshot
     "labels": [
       {
         "text": "a",
-        "col": 18,
-        "row": 11
+        "col": 21,
+        "row": 14
       },
       {
         "text": "b",
-        "col": 48,
-        "row": 11
+        "col": 57,
+        "row": 14
       }
     ]
   },
@@ -78,13 +78,13 @@ expression: snapshot
         "bars": [
           {
             "x0": 0.08333333333333333,
-            "w": 0.35,
+            "w": 0.3472222222222222,
             "h": 0.2,
             "color": "#00bfcb"
           },
           {
             "x0": 0.5833333333333334,
-            "w": 0.35,
+            "w": 0.3472222222222222,
             "h": 1.0,
             "color": "#ffc151"
           }

@@ -4,14 +4,14 @@ expression: snapshot
 ---
 {
   "size": {
-    "columns": 62,
-    "rows": 12
+    "columns": 74,
+    "rows": 15
   },
   "plot": {
     "x": 2,
     "y": 0,
-    "w": 60,
-    "h": 10
+    "w": 72,
+    "h": 13
   },
   "chrome": {
     "axis": "#6a707a",
@@ -24,25 +24,43 @@ expression: snapshot
       2.0,
       8.0
     ],
-    "step": 2.0,
+    "step": 1.0,
     "ticks": [
       {
         "value": 2.0,
         "frac": 0.0,
         "label": "2",
-        "row": 9
+        "row": 12
+      },
+      {
+        "value": 3.0,
+        "frac": 0.16666666666666666,
+        "label": "3",
+        "row": 10
       },
       {
         "value": 4.0,
         "frac": 0.3333333333333333,
         "label": "4",
+        "row": 8
+      },
+      {
+        "value": 5.0,
+        "frac": 0.5,
+        "label": "5",
         "row": 6
       },
       {
         "value": 6.0,
         "frac": 0.6666666666666666,
         "label": "6",
-        "row": 3
+        "row": 4
+      },
+      {
+        "value": 7.0,
+        "frac": 0.8333333333333334,
+        "label": "7",
+        "row": 2
       },
       {
         "value": 8.0,
@@ -61,24 +79,24 @@ expression: snapshot
     "domain": null,
     "tick_cols": [
       0,
-      30,
-      59
+      36,
+      71
     ],
     "labels": [
       {
         "text": "2024-01-01",
         "col": 0,
-        "row": 11
+        "row": 14
       },
       {
         "text": "2024-02-01",
-        "col": 27,
-        "row": 11
+        "col": 33,
+        "row": 14
       },
       {
         "text": "2024-03-01",
-        "col": 52,
-        "row": 11
+        "col": 64,
+        "row": 14
       }
     ]
   },

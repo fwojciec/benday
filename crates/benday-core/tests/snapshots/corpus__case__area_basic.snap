@@ -4,14 +4,14 @@ expression: snapshot
 ---
 {
   "size": {
-    "columns": 63,
-    "rows": 12
+    "columns": 75,
+    "rows": 15
   },
   "plot": {
     "x": 3,
     "y": 0,
-    "w": 60,
-    "h": 10
+    "w": 72,
+    "h": 13
   },
   "chrome": {
     "axis": "#6a707a",
@@ -30,19 +30,19 @@ expression: snapshot
         "value": 0.0,
         "frac": 0.0,
         "label": "0",
-        "row": 9
+        "row": 12
       },
       {
         "value": 5.0,
         "frac": 0.3333333333333333,
         "label": "5",
-        "row": 6
+        "row": 8
       },
       {
         "value": 10.0,
         "frac": 0.6666666666666666,
         "label": "10",
-        "row": 3
+        "row": 4
       },
       {
         "value": 15.0,
@@ -60,36 +60,60 @@ expression: snapshot
     ],
     "tick_cols": [
       0,
-      15,
-      30,
+      9,
+      18,
+      27,
+      36,
       44,
-      59
+      53,
+      62,
+      71
     ],
     "labels": [
       {
-        "text": "0",
-        "col": 3,
-        "row": 11
+        "text": "0.0",
+        "col": 2,
+        "row": 14
       },
       {
-        "text": "1",
-        "col": 18,
-        "row": 11
+        "text": "0.5",
+        "col": 11,
+        "row": 14
       },
       {
-        "text": "2",
-        "col": 33,
-        "row": 11
+        "text": "1.0",
+        "col": 20,
+        "row": 14
       },
       {
-        "text": "3",
-        "col": 47,
-        "row": 11
+        "text": "1.5",
+        "col": 29,
+        "row": 14
       },
       {
-        "text": "4",
-        "col": 62,
-        "row": 11
+        "text": "2.0",
+        "col": 38,
+        "row": 14
+      },
+      {
+        "text": "2.5",
+        "col": 46,
+        "row": 14
+      },
+      {
+        "text": "3.0",
+        "col": 55,
+        "row": 14
+      },
+      {
+        "text": "3.5",
+        "col": 64,
+        "row": 14
+      },
+      {
+        "text": "4.0",
+        "col": 72,
+        "row": 14
       }
     ]
   },

@@ -4,14 +4,14 @@ expression: snapshot
 ---
 {
   "size": {
-    "columns": 62,
-    "rows": 17
+    "columns": 74,
+    "rows": 19
   },
   "plot": {
     "x": 2,
     "y": 2,
-    "w": 60,
-    "h": 10
+    "w": 72,
+    "h": 13
   },
   "chrome": {
     "axis": "#6a707a",
@@ -19,7 +19,7 @@ expression: snapshot
   },
   "title": {
     "text": "legend wraps, never clips",
-    "col": 19,
+    "col": 25,
     "row": 0
   },
   "legend": [
@@ -27,31 +27,31 @@ expression: snapshot
       "name": "hot-full-table-scan",
       "color": "#55c4fe",
       "col": 2,
-      "row": 14
+      "row": 17
     },
     {
       "name": "hot-window-projection",
       "color": "#6cd092",
       "col": 27,
-      "row": 14
+      "row": 17
     },
     {
       "name": "wide-50-columns",
       "color": "#eca851",
-      "col": 2,
-      "row": 15
+      "col": 54,
+      "row": 17
     },
     {
       "name": "sparse-200-columns",
       "color": "#e698df",
-      "col": 23,
-      "row": 15
+      "col": 2,
+      "row": 18
     },
     {
       "name": "ultra-sparse-800",
       "color": "#17d0d8",
-      "col": 2,
-      "row": 16
+      "col": 26,
+      "row": 18
     }
   ],
   "y_axis": {
@@ -65,19 +65,19 @@ expression: snapshot
         "value": 2.0,
         "frac": 0.0,
         "label": "2",
-        "row": 11
+        "row": 14
       },
       {
         "value": 4.0,
         "frac": 0.3333333333333333,
         "label": "4",
-        "row": 8
+        "row": 10
       },
       {
         "value": 6.0,
         "frac": 0.6666666666666666,
         "label": "6",
-        "row": 5
+        "row": 6
       },
       {
         "value": 8.0,
@@ -95,42 +95,42 @@ expression: snapshot
     ],
     "tick_cols": [
       0,
-      12,
-      24,
-      35,
-      47,
-      59
+      14,
+      28,
+      43,
+      57,
+      71
     ],
     "labels": [
       {
         "text": "1.0",
         "col": 1,
-        "row": 13
+        "row": 16
       },
       {
         "text": "1.2",
-        "col": 13,
-        "row": 13
+        "col": 15,
+        "row": 16
       },
       {
         "text": "1.4",
-        "col": 25,
-        "row": 13
+        "col": 29,
+        "row": 16
       },
       {
         "text": "1.6",
-        "col": 36,
-        "row": 13
+        "col": 44,
+        "row": 16
       },
       {
         "text": "1.8",
-        "col": 48,
-        "row": 13
+        "col": 58,
+        "row": 16
       },
       {
         "text": "2.0",
-        "col": 59,
-        "row": 13
+        "col": 71,
+        "row": 16
       }
     ]
   },

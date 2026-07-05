@@ -4,13 +4,13 @@ expression: snapshot
 ---
 {
   "size": {
-    "columns": 64,
+    "columns": 76,
     "rows": 9
   },
   "plot": {
     "x": 4,
     "y": 0,
-    "w": 60,
+    "w": 72,
     "h": 7
   },
   "chrome": {
@@ -56,12 +56,12 @@ expression: snapshot
     "labels": [
       {
         "text": "a",
-        "col": 19,
+        "col": 22,
         "row": 8
       },
       {
         "text": "b",
-        "col": 49,
+        "col": 58,
         "row": 8
       }
     ]
@@ -72,13 +72,13 @@ expression: snapshot
         "bars": [
           {
             "x0": 0.08333333333333333,
-            "w": 0.35,
+            "w": 0.3472222222222222,
             "h": 0.8,
             "color": "#d2cd51"
           },
           {
             "x0": 0.5833333333333334,
-            "w": 0.35,
+            "w": 0.3472222222222222,
             "h": 0.2,
             "color": "#00bfcb"
           }
