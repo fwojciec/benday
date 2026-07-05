@@ -10,8 +10,6 @@
 //! FLIPPED to `1 - yscale.norm(y)` (0 at the top edge) so the rasterizer only
 //! multiplies by its pixel grid — it never re-flips.
 
-use std::collections::HashSet;
-
 use crate::data;
 use crate::error::Error;
 use crate::ingest::{Row, Table};
@@ -42,6 +40,24 @@ pub(crate) fn plot_dims(
     let plot_w = width.or(spec.width).unwrap_or(DEFAULT_WIDTH).max(8);
     let plot_h = height.or(spec.height).unwrap_or(DEFAULT_HEIGHT).max(3);
     (plot_w, plot_h)
+}
+
+/// Y ticks for a row-aligned scale: k intervals over plot_h-1 rows with
+/// exact integer spacing, one YTick per scale tick, rows descending from
+/// the bottom. `top` is the plot's buffer-absolute first row.
+fn y_ticks(y: &Linear, plot_h: usize, top: usize) -> Vec<YTick> {
+    let k = ((y.max - y.min) / y.step).round() as usize;
+    let spacing = (plot_h - 1) / k;
+    y.ticks()
+        .iter()
+        .enumerate()
+        .map(|(i, &t)| YTick {
+            value: t,
+            frac: y.norm(t),
+            label: fmt_tick(t, y.step),
+            row: top + (plot_h - 1) - i * spacing,
+        })
+        .collect()
 }
 
 /// Spec- and data-level rules the type system can't express, run before either
@@ -201,7 +217,7 @@ fn compile_bar(
         ));
     }
     let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let y = Linear::nice_from(0.0, vmax, plot_h.clamp(3, 6), true);
+    let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
     // validate() guarantees a color channel, if present, encodes the x field.
     let categorical = spec.encoding.color.is_some();
 
@@ -228,21 +244,7 @@ fn compile_bar(
         }
     });
 
-    // Y ticks: buffer-absolute rows, first-wins on collision.
-    let mut used = HashSet::new();
-    let mut ticks: Vec<YTick> = Vec::new();
-    for t in y.ticks() {
-        let r = ((1.0 - y.norm(t)) * (plot_h - 1) as f64).round() as usize;
-        if !used.insert(r) {
-            continue;
-        }
-        ticks.push(YTick {
-            value: t,
-            frac: y.norm(t),
-            label: fmt_tick(t, y.step),
-            row: top + r,
-        });
-    }
+    let ticks = y_ticks(&y, plot_h, top);
 
     // Bars + x-label anchors.
     let n = cats.len();
@@ -451,7 +453,7 @@ fn compile_xy(
         ymin = ymin.min(*y);
         ymax = ymax.max(*y);
     }
-    let yscale = Linear::nice_from(ymin, ymax, plot_h.clamp(3, 6), mark == Mark::Area);
+    let yscale = Linear::row_aligned(ymin, ymax, plot_h.clamp(3, 6), plot_h, mark == Mark::Area);
     let xscale = if xt == FieldType::Quantitative {
         Linear::nice_from(xmin, xmax, (plot_w / 10).clamp(2, 7), false)
     } else {
@@ -498,21 +500,7 @@ fn compile_xy(
         }
     }
 
-    // Y ticks: buffer-absolute rows, first-wins on collision.
-    let mut used = HashSet::new();
-    let mut ticks: Vec<YTick> = Vec::new();
-    for t in yscale.ticks() {
-        let r = ((1.0 - yscale.norm(t)) * (plot_h - 1) as f64).round() as usize;
-        if !used.insert(r) {
-            continue;
-        }
-        ticks.push(YTick {
-            value: t,
-            frac: yscale.norm(t),
-            label: fmt_tick(t, yscale.step),
-            row: top + r,
-        });
-    }
+    let ticks = y_ticks(&yscale, plot_h, top);
 
     // One SceneMark per series; points normalized with frac_y flipped here.
     let mut marks: Vec<SceneMark> = Vec::new();

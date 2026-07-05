@@ -1,0 +1,161 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 62,
+    "rows": 12
+  },
+  "plot": {
+    "x": 2,
+    "y": 0,
+    "w": 60,
+    "h": 10
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      6.0
+    ],
+    "step": 2.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 9
+      },
+      {
+        "value": 2.0,
+        "frac": 0.3333333333333333,
+        "label": "2",
+        "row": 6
+      },
+      {
+        "value": 4.0,
+        "frac": 0.6666666666666666,
+        "label": "4",
+        "row": 3
+      },
+      {
+        "value": 6.0,
+        "frac": 1.0,
+        "label": "6",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "1",
+        "col": 7,
+        "row": 11
+      },
+      {
+        "text": "2",
+        "col": 17,
+        "row": 11
+      },
+      {
+        "text": "3",
+        "col": 27,
+        "row": 11
+      },
+      {
+        "text": "4",
+        "col": 37,
+        "row": 11
+      },
+      {
+        "text": "5",
+        "col": 47,
+        "row": 11
+      },
+      {
+        "text": "6",
+        "col": 57,
+        "row": 11
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.03333333333333333,
+            "w": 0.11666666666666667,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.2,
+            "w": 0.11666666666666667,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.36666666666666664,
+            "w": 0.11666666666666667,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.5333333333333333,
+            "w": 0.11666666666666667,
+            "h": 0.6666666666666666,
+            "color": "#a5d16a"
+          },
+          {
+            "x0": 0.7,
+            "w": 0.11666666666666667,
+            "h": 0.16666666666666666,
+            "color": "#00bcd0"
+          },
+          {
+            "x0": 0.8666666666666667,
+            "w": 0.11666666666666667,
+            "h": 1.0,
+            "color": "#ffc151"
+          }
+        ]
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "face",
+    "y_field": "wins",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

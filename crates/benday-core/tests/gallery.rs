@@ -84,7 +84,7 @@ fn adversarial_gallery() {
               "mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}"#,
         ),
         (
-            "tick_collision_h7",
+            "small_height_ticks_h7",
             r#"{"data":{"values":[{"m":"a","v":160},{"m":"b","v":40}]},
               "mark":"bar","height":7,
               "encoding":{"x":{"field":"m"},"y":{"field":"v"}}}"#,
@@ -93,8 +93,8 @@ fn adversarial_gallery() {
     for (name, json) in cases {
         let spec = parse(json);
         let (w, h) = (60, 10);
-        // tick_collision_h7 relies on spec.height; don't override it.
-        let o = if *name == "tick_collision_h7" {
+        // small_height_ticks_h7 relies on spec.height; don't override it.
+        let o = if *name == "small_height_ticks_h7" {
             RenderOptions {
                 width: Some(w),
                 height: None,

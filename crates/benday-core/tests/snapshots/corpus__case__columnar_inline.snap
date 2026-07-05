@@ -24,31 +24,13 @@ expression: snapshot
       0.0,
       80.0
     ],
-    "step": 20.0,
+    "step": 80.0,
     "ticks": [
       {
         "value": 0.0,
         "frac": 0.0,
         "label": "0",
         "row": 9
-      },
-      {
-        "value": 20.0,
-        "frac": 0.25,
-        "label": "20",
-        "row": 7
-      },
-      {
-        "value": 40.0,
-        "frac": 0.5,
-        "label": "40",
-        "row": 5
-      },
-      {
-        "value": 60.0,
-        "frac": 0.75,
-        "label": "60",
-        "row": 2
       },
       {
         "value": 80.0,

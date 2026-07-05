@@ -24,7 +24,7 @@ expression: snapshot
       0.0,
       200.0
     ],
-    "step": 50.0,
+    "step": 100.0,
     "ticks": [
       {
         "value": 0.0,
@@ -33,22 +33,10 @@ expression: snapshot
         "row": 6
       },
       {
-        "value": 50.0,
-        "frac": 0.25,
-        "label": "50",
-        "row": 5
-      },
-      {
         "value": 100.0,
         "frac": 0.5,
         "label": "100",
         "row": 3
-      },
-      {
-        "value": 150.0,
-        "frac": 0.75,
-        "label": "150",
-        "row": 2
       },
       {
         "value": 200.0,

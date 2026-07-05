@@ -21,40 +21,28 @@ expression: snapshot
   "legend": [],
   "y_axis": {
     "domain": [
-      7.0,
+      6.0,
       12.0
     ],
-    "step": 1.0,
+    "step": 2.0,
     "ticks": [
       {
-        "value": 7.0,
+        "value": 6.0,
         "frac": 0.0,
-        "label": "7",
+        "label": "6",
         "row": 9
       },
       {
         "value": 8.0,
-        "frac": 0.2,
+        "frac": 0.3333333333333333,
         "label": "8",
-        "row": 7
-      },
-      {
-        "value": 9.0,
-        "frac": 0.4,
-        "label": "9",
-        "row": 5
+        "row": 6
       },
       {
         "value": 10.0,
-        "frac": 0.6,
+        "frac": 0.6666666666666666,
         "label": "10",
-        "row": 4
-      },
-      {
-        "value": 11.0,
-        "frac": 0.8,
-        "label": "11",
-        "row": 2
+        "row": 3
       },
       {
         "value": 12.0,
@@ -125,7 +113,7 @@ expression: snapshot
           ],
           [
             1.0,
-            1.0
+            0.8333333333333334
           ]
         ]
       }

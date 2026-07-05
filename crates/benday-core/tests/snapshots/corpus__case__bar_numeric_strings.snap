@@ -22,9 +22,9 @@ expression: snapshot
   "y_axis": {
     "domain": [
       0.0,
-      12.0
+      15.0
     ],
-    "step": 2.0,
+    "step": 5.0,
     "ticks": [
       {
         "value": 0.0,
@@ -33,39 +33,21 @@ expression: snapshot
         "row": 9
       },
       {
-        "value": 2.0,
-        "frac": 0.16666666666666666,
-        "label": "2",
-        "row": 8
-      },
-      {
-        "value": 4.0,
+        "value": 5.0,
         "frac": 0.3333333333333333,
-        "label": "4",
+        "label": "5",
         "row": 6
       },
       {
-        "value": 6.0,
-        "frac": 0.5,
-        "label": "6",
-        "row": 5
-      },
-      {
-        "value": 8.0,
+        "value": 10.0,
         "frac": 0.6666666666666666,
-        "label": "8",
+        "label": "10",
         "row": 3
       },
       {
-        "value": 10.0,
-        "frac": 0.8333333333333334,
-        "label": "10",
-        "row": 1
-      },
-      {
-        "value": 12.0,
+        "value": 15.0,
         "frac": 1.0,
-        "label": "12",
+        "label": "15",
         "row": 0
       }
     ]
@@ -97,14 +79,14 @@ expression: snapshot
           {
             "x0": 0.08333333333333333,
             "w": 0.35,
-            "h": 1.0,
-            "color": "#ffc151"
+            "h": 0.8,
+            "color": "#d2cd51"
           },
           {
             "x0": 0.5833333333333334,
             "w": 0.35,
-            "h": 0.625,
-            "color": "#96d274"
+            "h": 0.5,
+            "color": "#67d191"
           }
         ]
       }

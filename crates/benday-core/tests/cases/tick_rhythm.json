@@ -1,0 +1,9 @@
+{
+  "data": { "values": [
+    {"face": "1", "wins": 3}, {"face": "2", "wins": 3},
+    {"face": "3", "wins": 3}, {"face": "4", "wins": 4},
+    {"face": "5", "wins": 1}, {"face": "6", "wins": 6}
+  ]},
+  "mark": "bar",
+  "encoding": { "x": {"field": "face"}, "y": {"field": "wins"} }
+}

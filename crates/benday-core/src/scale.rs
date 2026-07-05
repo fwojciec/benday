@@ -35,7 +35,6 @@ impl Linear {
     /// lo = -step, hi = step at every rung), so k <= 2 without alignment falls
     /// back to a single interval: the domain niced at the FINEST step (minimal
     /// inflation), its two endpoints the only ticks.
-    #[allow(dead_code)] // wired into the render path in a later task
     pub fn row_aligned(
         mut min: f64,
         mut max: f64,
@@ -125,7 +124,6 @@ fn nice_num(x: f64, round: bool) -> f64 {
 }
 
 /// The next step up the 1/2/5 ladder (1 -> 2 -> 5 -> 10 -> 20 ...).
-#[allow(dead_code)] // used by `row_aligned`, wired into render in a later task
 fn next_nice(step: f64) -> f64 {
     let exp = step.log10().floor();
     let pow = 10f64.powf(exp);
