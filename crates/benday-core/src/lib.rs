@@ -16,6 +16,7 @@ mod scale;
 pub mod scene;
 pub mod spec;
 pub mod theme;
+mod time;
 
 pub use error::Error;
 pub use raster::{Marker, Rgb};
