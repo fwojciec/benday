@@ -42,8 +42,19 @@ quantitative one.**
   resolution uses the existing precedence chain (spec `type` > declared
   column type > inference), so a piped envelope with `facility STRING,
   volume INT64` orients correctly with no annotations.
-- Both quantitative or both categorical → error naming the rule and both
-  resolved types.
+- `aggregate: "count"` decides FIRST: it makes its channel the
+  quantitative value channel regardless of field type (count is
+  intrinsically numeric; its field may be absent from rows, which would
+  otherwise infer nominal and misroute). Count on both channels is an
+  error.
+- Both quantitative → error naming the rule and both resolved types.
+- Both categorical → **coercion rescue** before erroring, honoring the
+  stdin cycle's contract that a declared-`STRING` y column of
+  numeric-string values still charts as a vertical bar (bar y is not
+  type-gated). The rescue applies only to channels WITHOUT an explicit
+  spec `"type"` — an explicit type is the caller's stated intent and is
+  never overridden. Rescue order: y coerces numeric → vertical (compat
+  bias), else x coerces → horizontal, else the both-categorical error.
 
 **`color` means what it means everywhere else: the field that splits
 series.**
@@ -120,8 +131,10 @@ labeled) stays.
 
 **Errors, all with the fix in the message:**
 
-- Both channels quantitative, or both categorical → the orientation rule
-  plus both resolved types.
+- Both channels quantitative, or both categorical (after the coercion
+  rescue fails) → the orientation rule plus both resolved types.
+- `aggregate` on both channels → "aggregate belongs on exactly one
+  channel".
 - `xOffset` present → accepted by the grammar, rejected in validation with
   "grouping is expressed with color alone" (the only way to beat
   `deny_unknown_fields`' generic message to a helpful one).

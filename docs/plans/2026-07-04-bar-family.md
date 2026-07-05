@@ -65,17 +65,24 @@ pub enum BarDirection {
 `SceneMark::Bars { bars: Vec<Bar>, direction: BarDirection }` — one field
 per mark, not per bar. `compile_bar` sets `Vertical`.
 
-**Step 2: Rasterizer.** `rasterize_bars` takes the direction and fills
-rects:
+**Step 2: Rasterizer.** `rasterize_bars` branches on `direction` in BOTH
+styles — do NOT unify the arithmetic into a generic rect fill. Rounding is
+not associative: today's vertical dots compute `level = round(h * ph)`
+then fill `(ph - level)..ph`, and a rewritten `round((1-h) * ph)` lower
+bound differs whenever `h * ph` lands on `.5` — a one-subpixel bar-top
+shift that breaks the zero-gallery-diff referee.
 
-- **Dots:** direction-free — pixel ranges become two-dimensional:
-  `px in (x0*plot_w*2).round() .. ((x0+w)*plot_w*2).round()` and
-  `py in (y0*plot_h*4).round() .. ((y0+h)*plot_h*4).round()`. For today's
-  vertical bars this reproduces `(ph - level)..ph` exactly (y0+h = 1).
-- **Blocks:** branch on `direction`. `Vertical` keeps today's bottom-up
-  eighths (`EIGHTHS`) fill verbatim. `Horizontal` fills left-anchored with
-  a new `LEFT_EIGHTHS` table (`▏▎▍▌▋▊▉`, U+258F down to U+2589, plus `█`)
-  for the partial END column.
+- **Dots, `Vertical`:** today's code verbatim (`raster/mod.rs:101-120`),
+  including its exact rounding order.
+- **Dots, `Horizontal`:** new fill:
+  `px in (x0*plot_w).round()*2 .. (((x0+w)*plot_w).round())*2` (length
+  anchored at the rounded value extent) and
+  `py in (y0*plot_h).round()*4 .. ((y0+h)*plot_h).round()*4` (bar rows are
+  exact cell multiples by construction, so this is exact).
+- **Blocks, `Vertical`:** today's bottom-up eighths (`EIGHTHS`) verbatim.
+- **Blocks, `Horizontal`:** left-anchored fill with a new `LEFT_EIGHTHS`
+  table (`▏▎▍▌▋▊▉`, U+258F down to U+2589, plus `█`) for the partial END
+  column.
 
 **Step 3: Rasterizer unit tests** (table-driven, in `raster/mod.rs` tests):
 a vertical rect and a horizontal rect, dots and blocks each — assert the
@@ -163,7 +170,7 @@ Vega-Lite form to prove the Value-typed field catches non-Channel shapes),
 `err_group_width` (many categories × series at default width, the fit
 error verbatim).
 
-**Step 5:** `make validate`, audit: authorized = the five NEW corpus
+**Step 5:** `make validate`, audit: authorized = the six NEW corpus
 snapshots only. Zero existing-snapshot diffs anywhere, gallery included.
 Render the referral example in a terminal: groups separated, offsets
 stable, legend below, colors match the legend.
@@ -187,8 +194,17 @@ stable, legend below, colors match the legend.
   field in rows), `err_height_ceiling.json`, `name_truncation.json`
 
 **Step 1: Orientation resolution** in `compile()` (`compile.rs:127-134`),
-for `Mark::Bar` only — resolve both channel types through the existing
-precedence chain (spec > declared > inference), then:
+for `Mark::Bar` only. Resolution order:
+
+1. **Count rule first:** `aggregate: "count"` makes its channel THE
+   quantitative value channel regardless of field type — count is
+   intrinsically numeric and its field may be absent from rows entirely
+   (absent fields infer Nominal, which must not misroute). `y` count →
+   vertical (today's behavior); `x` count → horizontal. Count on BOTH
+   channels → error (kind spec): "aggregate belongs on exactly one
+   channel".
+2. Otherwise resolve both channel types through the existing precedence
+   chain (spec > declared > inference), then route:
 
 | x type          | y type          | route                              |
 |-----------------|-----------------|------------------------------------|
@@ -199,10 +215,12 @@ precedence chain (spec > declared > inference), then:
 
 **Coercion rescue (stdin-cycle contract):** the stdin design promises that
 a declared-`STRING` y column whose values coerce numerically still charts
-as a vertical bar (bar y is not type-gated). So both-categorical first
-tries `infer_type(rows, yf) == Quantitative` → vertical (compat bias),
-then `infer_type(rows, xf) == Quantitative` → horizontal, and only then
-errors:
+as a vertical bar (bar y is not type-gated). The rescue applies ONLY to a
+channel WITHOUT an explicit spec `"type"` — an explicit
+`{"type": "nominal"}` is the caller's stated intent and is never
+overridden (the precedence contract stays intact). Among rescue-eligible
+channels: `infer_type(rows, yf) == Quantitative` → vertical (compat bias),
+else `infer_type(rows, xf) == Quantitative` → horizontal, else error:
 
 ```text
 "bar needs one categorical and one quantitative channel; both x (\"{xf}\")
@@ -212,7 +230,7 @@ explicit \"type\"" — kind spec, exit 2
 
 (Two variants, `quantitative` / `categorical`; both-quantitative gets no
 rescue — an explicit `"type"` is the fix.) Every existing bar corpus case
-has categorical x and numeric y and must keep its route: zero
+has categorical x and numeric y (or y-count) and must keep its route: zero
 existing-corpus diffs.
 
 **Step 1b: Aggregate placement and field checks move post-orientation.**
