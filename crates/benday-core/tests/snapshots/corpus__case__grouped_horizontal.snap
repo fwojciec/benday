@@ -1,0 +1,179 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 94,
+    "rows": 11
+  },
+  "plot": {
+    "x": 22,
+    "y": 0,
+    "w": 72,
+    "h": 8
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [
+    {
+      "name": "inbound",
+      "color": "#55c4fe",
+      "col": 22,
+      "row": 10
+    },
+    {
+      "name": "outbound",
+      "color": "#6cd092",
+      "col": 35,
+      "row": 10
+    }
+  ],
+  "y_axis": {
+    "domain": [
+      0.0,
+      2.0
+    ],
+    "step": 1.0,
+    "categories": [
+      "St. Mary's Regional",
+      "Cedar Grove Community",
+      "Riverside General"
+    ],
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "St. Mary's Regional",
+        "row": 0
+      },
+      {
+        "value": 1.0,
+        "frac": 0.5,
+        "label": "Cedar Grove Community",
+        "row": 3
+      },
+      {
+        "value": 2.0,
+        "frac": 1.0,
+        "label": "Riverside General",
+        "row": 6
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      500.0
+    ],
+    "tick_cols": [
+      0,
+      14,
+      28,
+      43,
+      57,
+      71
+    ],
+    "labels": [
+      {
+        "text": "0",
+        "col": 22,
+        "row": 9
+      },
+      {
+        "text": "100",
+        "col": 35,
+        "row": 9
+      },
+      {
+        "text": "200",
+        "col": 49,
+        "row": 9
+      },
+      {
+        "text": "300",
+        "col": 64,
+        "row": 9
+      },
+      {
+        "text": "400",
+        "col": 78,
+        "row": 9
+      },
+      {
+        "text": "500",
+        "col": 91,
+        "row": 9
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 0.84,
+            "h": 0.125,
+            "color": "#55c4fe"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.125,
+            "w": 0.52,
+            "h": 0.125,
+            "color": "#6cd092"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.375,
+            "w": 0.62,
+            "h": 0.125,
+            "color": "#55c4fe"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.5,
+            "w": 0.38,
+            "h": 0.125,
+            "color": "#6cd092"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.75,
+            "w": 0.55,
+            "h": 0.125,
+            "color": "#55c4fe"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.875,
+            "w": 0.28,
+            "h": 0.125,
+            "color": "#6cd092"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "n",
+    "y_field": "facility",
+    "aggregate": "sum",
+    "series_points": [
+      3,
+      3
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}
