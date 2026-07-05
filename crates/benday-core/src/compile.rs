@@ -18,8 +18,9 @@ use crate::scene::{
     Bar, BarDirection, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size,
     Source, XAxis, YAxis, YTick,
 };
-use crate::spec::{Aggregate, FieldType, Mark, Spec};
+use crate::spec::{Aggregate, Channel, FieldType, Mark, Spec};
 use crate::theme::Theme;
+use std::collections::HashMap;
 
 // 12 row-intervals divide evenly by 2/3/4/6 for the row-aligned tick search;
 // width 72 plus the axis gutter stays under 80 columns.
@@ -78,6 +79,13 @@ pub fn preflight(spec: &Spec, rows: &[Row]) -> Result<(), Error> {
 }
 
 fn validate(spec: &Spec) -> Result<(), Error> {
+    if spec.encoding.x_offset.is_some() {
+        return Err(Error::Spec(
+            "`xOffset` is not supported; grouping is expressed with color alone \
+             — set encoding.color to the grouping field"
+                .into(),
+        ));
+    }
     if spec.encoding.x.aggregate.is_some() {
         return Err(Error::Spec(
             "`aggregate` on encoding.x is not supported; aggregation runs over y, grouped by x"
@@ -91,23 +99,12 @@ fn validate(spec: &Spec) -> Result<(), Error> {
             ));
         }
     }
-    if spec.mark == Mark::Bar {
-        if let Some(c) = &spec.encoding.color {
-            if c.field != spec.encoding.x.field {
-                return Err(Error::Spec(format!(
-                    "bar marks cannot group by color yet; encoding.color.field must equal \
-                     encoding.x.field (\"{}\") or be omitted",
-                    spec.encoding.x.field
-                )));
-            }
-        }
-        if spec.encoding.x.ty == Some(FieldType::Quantitative) {
-            return Err(Error::Spec(
-                "bar marks treat x as categorical; omit encoding.x.type, or use mark \"line\" \
-                 or \"area\" for a quantitative x"
-                    .into(),
-            ));
-        }
+    if spec.mark == Mark::Bar && spec.encoding.x.ty == Some(FieldType::Quantitative) {
+        return Err(Error::Spec(
+            "bar marks treat x as categorical; omit encoding.x.type, or use mark \"line\" \
+             or \"area\" for a quantitative x"
+                .into(),
+        ));
     }
     Ok(())
 }
@@ -151,6 +148,14 @@ pub fn compile(spec: &Spec, table: &Table, opts: &CompileOptions) -> Result<Scen
     }
 }
 
+/// Whether a color channel splits the bars into grouped series (it names a
+/// THIRD field) rather than tinting the category axis (it names the category
+/// field itself). Orientation-neutral: `category_field` is x for vertical bars,
+/// y for horizontal — so task 4's horizontal path reuses this predicate.
+fn is_grouped(color: Option<&Channel>, category_field: &str) -> bool {
+    color.is_some_and(|c| c.field != category_field)
+}
+
 fn compile_bar(
     spec: &Spec,
     table: &Table,
@@ -163,6 +168,12 @@ fn compile_bar(
     let yf = &spec.encoding.y.field;
     let agg = spec.encoding.y.aggregate.unwrap_or(Aggregate::Sum);
     let theme = &opts.theme;
+
+    // Grouped bars (color names a third field) take a separate path; the code
+    // below handles plain (gradient) and categorical-tint (color == x) bars.
+    if is_grouped(spec.encoding.color.as_ref(), xf) {
+        return compile_bar_grouped(spec, table, opts, plot_w, plot_h);
+    }
 
     let mut cats: Vec<String> = Vec::new();
     let mut groups: Vec<Vec<f64>> = Vec::new();
@@ -220,7 +231,8 @@ fn compile_bar(
     }
     let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
-    // validate() guarantees a color channel, if present, encodes the x field.
+    // Grouped color was routed away above, so any remaining color channel names
+    // the x field: a categorical tint (one color per bar, not per series).
     let categorical = spec.encoding.color.is_some();
 
     // --- Layout.
@@ -317,6 +329,253 @@ fn compile_bar(
             y_field: yf.clone(),
             aggregate: Some(agg),
             series_points: groups.iter().map(Vec::len).collect(),
+            data_source: table.provenance.source,
+            truncated: table.provenance.truncated,
+            total_rows: table.provenance.total_rows,
+        },
+    })
+}
+
+/// Grouped vertical bars: `color` names a third field, splitting each category
+/// into a group of series bars. Layout indexes by series POSITION (not
+/// presence), so a missing (category, series) cell leaves a stable empty slot.
+fn compile_bar_grouped(
+    spec: &Spec,
+    table: &Table,
+    opts: &CompileOptions,
+    plot_w: usize,
+    plot_h: usize,
+) -> Result<Scene, Error> {
+    let rows = &table.rows;
+    let xf = &spec.encoding.x.field;
+    let yf = &spec.encoding.y.field;
+    let cf = &spec
+        .encoding
+        .color
+        .as_ref()
+        .expect("grouped bars require a color channel")
+        .field;
+    let agg = spec.encoding.y.aggregate.unwrap_or(Aggregate::Sum);
+    let theme = &opts.theme;
+
+    // Scan into (category, series) cells: categories and series in first-seen
+    // order, each cell a vector of raw values to aggregate.
+    let mut cats: Vec<String> = Vec::new();
+    let mut series_names: Vec<String> = Vec::new();
+    let mut raw: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+    let mut dropped = 0usize;
+    for row in rows {
+        let Some(xv) = row.get(xf) else {
+            dropped += 1;
+            continue;
+        };
+        let yn = if agg == Aggregate::Count {
+            Some(1.0)
+        } else {
+            row.get(yf).and_then(data::num)
+        };
+        let Some(yn) = yn else {
+            dropped += 1;
+            continue;
+        };
+        let cat = data::text(xv);
+        let sname = row.get(cf).map(data::text).unwrap_or_else(|| "null".into());
+        let ci = match cats.iter().position(|c| *c == cat) {
+            Some(i) => i,
+            None => {
+                cats.push(cat);
+                cats.len() - 1
+            }
+        };
+        let si = match series_names.iter().position(|s| *s == sname) {
+            Some(i) => i,
+            None => {
+                series_names.push(sname);
+                series_names.len() - 1
+            }
+        };
+        raw.entry((ci, si)).or_default().push(yn);
+    }
+    if cats.is_empty() {
+        return Err(Error::Data(format!(
+            "no usable rows: field \"{yf}\" has no numeric values (or \"{xf}\" is always missing)"
+        )));
+    }
+
+    // Ordinal x sorts its categories lexically (declared DATE/TIMESTAMP or an
+    // explicit ordinal type). Cells are keyed by category index, so remap the
+    // keys alongside the sort; series order stays first-seen.
+    let xt = spec
+        .encoding
+        .x
+        .ty
+        .or_else(|| table.declared.get(xf).copied())
+        .unwrap_or_else(|| data::infer_type(rows, xf));
+    if xt == FieldType::Ordinal {
+        let mut order: Vec<usize> = (0..cats.len()).collect();
+        order.sort_by(|&a, &b| cats[a].cmp(&cats[b]));
+        let mut remap = vec![0usize; cats.len()];
+        for (new, &old) in order.iter().enumerate() {
+            remap[old] = new;
+        }
+        let mut sorted = vec![String::new(); cats.len()];
+        for (old, c) in cats.into_iter().enumerate() {
+            sorted[remap[old]] = c;
+        }
+        cats = sorted;
+        raw = raw
+            .into_iter()
+            .map(|((ci, si), v)| ((remap[ci], si), v))
+            .collect();
+    }
+
+    let n_cats = cats.len();
+    let n_series = series_names.len();
+
+    // Palette cap (before layout): color is the only channel identifying a
+    // series here, so cycling the palette would make two series
+    // indistinguishable — reject loudly. Categorical tint stays exempt (routed
+    // to compile_bar). Message matches the chrome cycle's multi-series line cap.
+    if n_series > theme.palette.len() {
+        return Err(Error::Data(format!(
+            "{} series exceed the {} distinguishable series colors; aggregate or filter \"{cf}\"",
+            n_series,
+            theme.palette.len(),
+        )));
+    }
+
+    // Fit check (before layout): each slot must hold one column per series plus
+    // an inter-group gap, so groups never overlap the neighbor slot.
+    let req = n_cats * (n_series + 1);
+    if plot_w < req {
+        return Err(Error::Data(format!(
+            "{n_cats} categories × {n_series} series need width ≥ {req}; \
+             raise --width, or filter/aggregate"
+        )));
+    }
+
+    // Aggregate each cell; a missing cell stays `None` (empty slot).
+    let mut cells = vec![vec![None::<f64>; n_series]; n_cats];
+    for ((ci, si), v) in &raw {
+        cells[*ci][*si] = Some(aggregate(v, agg));
+    }
+    let mut vmax = f64::NEG_INFINITY;
+    for cell in cells.iter().flatten().flatten() {
+        if *cell < 0.0 {
+            return Err(Error::Data(
+                "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
+            ));
+        }
+        vmax = vmax.max(*cell);
+    }
+    let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
+
+    // --- Layout (title, gutter, columns) — identical to plain bars.
+    let title_rows = if spec.title.is_some() { 2 } else { 0 };
+    let gutter = y
+        .ticks()
+        .iter()
+        .map(|t| fmt_tick(*t, y.step).chars().count())
+        .max()
+        .unwrap_or(1);
+    let columns = gutter + 1 + plot_w;
+    let top = title_rows;
+
+    let title = spec.title.as_deref().map(|t| {
+        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
+        Placed {
+            text: t.to_string(),
+            col,
+            row: 0,
+        }
+    });
+
+    let ticks = y_ticks(&y, plot_h, top);
+
+    // Per category slot: a group of `n_series` adjacent bars, centered in the
+    // slot. Bar `si` keeps the same in-group offset in every slot, so a missing
+    // cell leaves a visible gap at a stable position. The fit check above
+    // guarantees `floor(step) - 1 >= n_series`, so the clamp is well-formed.
+    let step = plot_w as f64 / n_cats as f64;
+    let group_w = ((step * 0.7).round() as usize).clamp(n_series, step.floor() as usize - 1);
+    let bar_w = (group_w / n_series).max(1);
+    let group_span = bar_w * n_series;
+    let label_max = (step.floor() as usize).saturating_sub(1).max(1);
+
+    let mut bars: Vec<Bar> = Vec::new();
+    let mut anchors: Vec<(usize, String)> = Vec::new();
+    for (ci, cell_row) in cells.iter().enumerate() {
+        let center = (ci as f64 + 0.5) * step;
+        let group_left =
+            ((center - group_span as f64 / 2.0).round().max(0.0) as usize).min(plot_w - group_span);
+        for (si, cell) in cell_row.iter().enumerate() {
+            if let Some(v) = cell {
+                let x0 = group_left + si * bar_w;
+                bars.push(Bar {
+                    x0: x0 as f64 / plot_w as f64,
+                    y0: 1.0 - y.norm(*v),
+                    w: bar_w as f64 / plot_w as f64,
+                    h: y.norm(*v),
+                    color: theme.series(si),
+                });
+            }
+        }
+        anchors.push((
+            (center.round() as usize).min(plot_w - 1),
+            truncate(&cats[ci], label_max),
+        ));
+    }
+
+    let (legend, legend_rows) = legend_below(&series_names, theme, gutter, columns, top, plot_h);
+    let total_rows = top + plot_h + 2 + legend_rows;
+
+    let labels = place_x_labels(&anchors, gutter, columns, top + plot_h + 1);
+
+    // Per-series cell counts (the xy shape's points-per-series analog): how many
+    // categories the series appears in.
+    let series_points: Vec<usize> = (0..n_series)
+        .map(|si| cells.iter().filter(|r| r[si].is_some()).count())
+        .collect();
+
+    Ok(Scene {
+        size: Size {
+            columns,
+            rows: total_rows,
+        },
+        plot: Rect {
+            x: gutter + 1,
+            y: top,
+            w: plot_w,
+            h: plot_h,
+        },
+        chrome: Chrome {
+            axis: theme.axis,
+            title: theme.title,
+        },
+        title,
+        legend,
+        y_axis: YAxis {
+            domain: [y.min, y.max],
+            step: y.step,
+            ticks,
+        },
+        x_axis: XAxis {
+            categories: Some(cats),
+            domain: None,
+            tick_cols: Vec::new(),
+            labels,
+        },
+        marks: vec![SceneMark::Bars {
+            bars,
+            direction: BarDirection::Vertical,
+        }],
+        dropped_rows: dropped,
+        source: Source {
+            mark: Mark::Bar,
+            x_field: xf.clone(),
+            y_field: yf.clone(),
+            aggregate: Some(agg),
+            series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
             total_rows: table.provenance.total_rows,
@@ -506,29 +765,12 @@ fn compile_xy(
     // Legend (multi-series only): "── name" entries flow below the x labels,
     // wrapping before the right edge. Entries are never clipped; a name wider
     // than the whole row is visibly truncated with '…'.
-    let legend_row0 = top + plot_h + 2;
-    let mut legend: Vec<LegendEntry> = Vec::new();
-    if multi {
-        let left = gutter + 1;
-        let max_name = columns.saturating_sub(left + 3);
-        let (mut col, mut row) = (left, legend_row0);
-        for (i, s) in series.iter().enumerate() {
-            let name = truncate(&s.name, max_name);
-            let w = 3 + name.chars().count(); // "── " + name
-            if col > left && col + w > columns {
-                col = left;
-                row += 1;
-            }
-            legend.push(LegendEntry {
-                name,
-                color: theme.series(i),
-                col,
-                row,
-            });
-            col += w + 3;
-        }
-    }
-    let legend_rows = legend.last().map_or(0, |e| e.row + 1 - legend_row0);
+    let (legend, legend_rows) = if multi {
+        let names: Vec<String> = series.iter().map(|s| s.name.clone()).collect();
+        legend_below(&names, theme, gutter, columns, top, plot_h)
+    } else {
+        (Vec::new(), 0)
+    };
     let total_rows = top + plot_h + 2 + legend_rows;
 
     let ticks = y_ticks(&yscale, plot_h, top);
@@ -642,6 +884,44 @@ fn compile_xy(
             total_rows: table.provenance.total_rows,
         },
     })
+}
+
+/// The shared multi-series legend: "── name" entries flow below the x labels
+/// starting at `top + plot_h + 2`, wrapping before the right edge. Entries are
+/// never clipped; a name wider than the whole row is visibly truncated with
+/// '…'. Colors cycle the palette by entry index (`theme.series`). Returns the
+/// placed entries plus the number of rows they occupy. Used by both the xy
+/// (line/point/area) path and the grouped-bar path — ONE implementation.
+fn legend_below(
+    names: &[String],
+    theme: &Theme,
+    gutter: usize,
+    columns: usize,
+    top: usize,
+    plot_h: usize,
+) -> (Vec<LegendEntry>, usize) {
+    let legend_row0 = top + plot_h + 2;
+    let left = gutter + 1;
+    let max_name = columns.saturating_sub(left + 3);
+    let (mut col, mut row) = (left, legend_row0);
+    let mut legend: Vec<LegendEntry> = Vec::new();
+    for (i, name) in names.iter().enumerate() {
+        let name = truncate(name, max_name);
+        let w = 3 + name.chars().count(); // "── " + name
+        if col > left && col + w > columns {
+            col = left;
+            row += 1;
+        }
+        legend.push(LegendEntry {
+            name,
+            color: theme.series(i),
+            col,
+            row,
+        });
+        col += w + 3;
+    }
+    let legend_rows = legend.last().map_or(0, |e| e.row + 1 - legend_row0);
+    (legend, legend_rows)
 }
 
 /// Greedy left-to-right x-label placement: each label centered on its anchor

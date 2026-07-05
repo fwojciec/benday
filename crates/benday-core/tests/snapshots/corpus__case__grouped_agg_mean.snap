@@ -1,0 +1,139 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 75,
+    "rows": 16
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [
+    {
+      "name": "in",
+      "color": "#55c4fe",
+      "col": 3,
+      "row": 15
+    },
+    {
+      "name": "out",
+      "color": "#6cd092",
+      "col": 11,
+      "row": 15
+    }
+  ],
+  "y_axis": {
+    "domain": [
+      0.0,
+      60.0
+    ],
+    "step": 20.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 12
+      },
+      {
+        "value": 20.0,
+        "frac": 0.3333333333333333,
+        "label": "20",
+        "row": 8
+      },
+      {
+        "value": 40.0,
+        "frac": 0.6666666666666666,
+        "label": "40",
+        "row": 4
+      },
+      {
+        "value": 60.0,
+        "frac": 1.0,
+        "label": "60",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "Q1",
+      "Q2"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "Q1",
+        "col": 20,
+        "row": 14
+      },
+      {
+        "text": "Q2",
+        "col": 56,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.08333333333333333,
+            "y0": 0.5,
+            "w": 0.16666666666666666,
+            "h": 0.5,
+            "color": "#55c4fe"
+          },
+          {
+            "x0": 0.25,
+            "y0": 0.5833333333333333,
+            "w": 0.16666666666666666,
+            "h": 0.4166666666666667,
+            "color": "#6cd092"
+          },
+          {
+            "x0": 0.5833333333333334,
+            "y0": 0.16666666666666663,
+            "w": 0.16666666666666666,
+            "h": 0.8333333333333334,
+            "color": "#55c4fe"
+          },
+          {
+            "x0": 0.75,
+            "y0": 0.6666666666666667,
+            "w": 0.16666666666666666,
+            "h": 0.3333333333333333,
+            "color": "#6cd092"
+          }
+        ],
+        "direction": "vertical"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "q",
+    "y_field": "n",
+    "aggregate": "mean",
+    "series_points": [
+      2,
+      2
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

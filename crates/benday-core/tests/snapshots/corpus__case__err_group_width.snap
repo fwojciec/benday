@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): 9 categories × 8 series need width ≥ 81; raise --width, or filter/aggregate

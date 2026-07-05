@@ -143,14 +143,22 @@ mod tests {
     }
 
     #[test]
-    fn bar_color_grouping_is_rejected_not_ignored() {
+    fn bar_color_grouping_produces_grouped_series() {
+        // A color field distinct from x now groups the bars into series
+        // (legend below, a `series` array in meta) rather than erroring.
         let s = spec(
-            r#"{"data":{"values":[{"m":"jan","v":3,"region":"west"}]},
+            r#"{"data":{"values":[
+                {"m":"jan","v":3,"region":"west"},{"m":"jan","v":2,"region":"east"},
+                {"m":"feb","v":4,"region":"west"},{"m":"feb","v":5,"region":"east"}]},
                 "mark":"bar",
                 "encoding":{"x":{"field":"m"},"y":{"field":"v"},"color":{"field":"region"}}}"#,
         );
-        let err = render(&s, None, &opts()).unwrap_err();
-        assert_eq!(err.kind(), "spec");
-        assert!(err.to_string().contains("color"));
+        let out = render(&s, None, &opts()).unwrap();
+        let series = out.meta["series"]
+            .as_array()
+            .expect("grouped bars carry series");
+        assert_eq!(series.len(), 2);
+        assert_eq!(series[0]["name"], "west");
+        assert_eq!(series[1]["name"], "east");
     }
 }

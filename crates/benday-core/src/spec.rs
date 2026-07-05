@@ -66,6 +66,13 @@ pub struct Encoding {
     pub y: Channel,
     #[serde(default)]
     pub color: Option<Channel>,
+    /// Accepted by the grammar only so validation can reject it with a helpful
+    /// redirect (grouping is expressed with `color`). Typed as a raw `Value`,
+    /// not a `Channel`: Vega-Lite emits several xOffset shapes (`{"field": …}`,
+    /// `{"value": …}`, band configs) and a strict `Channel` would bounce them
+    /// into serde's generic unknown-field error before validation could help.
+    #[serde(default, rename = "xOffset")]
+    pub x_offset: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]

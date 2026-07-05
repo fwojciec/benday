@@ -172,21 +172,45 @@ impl Scene {
     pub fn meta(&self) -> serde_json::Value {
         let size = json!({ "columns": self.size.columns, "rows": self.size.rows });
         let mut meta = match self.source.mark {
-            Mark::Bar => json!({
-                "mark": "bar",
-                "x": {
-                    "field": self.source.x_field,
-                    "type": "nominal",
-                    "categories": self.x_axis.categories,
-                },
-                "y": {
-                    "field": self.source.y_field,
-                    "aggregate": self.source.aggregate,
-                    "domain": self.y_axis.domain,
-                },
-                "dropped_rows": self.dropped_rows,
-                "size": size,
-            }),
+            Mark::Bar => {
+                let mut base = json!({
+                    "mark": "bar",
+                    "x": {
+                        "field": self.source.x_field,
+                        "type": "nominal",
+                        "categories": self.x_axis.categories,
+                    },
+                    "y": {
+                        "field": self.source.y_field,
+                        "aggregate": self.source.aggregate,
+                        "domain": self.y_axis.domain,
+                    },
+                    "dropped_rows": self.dropped_rows,
+                    "size": size,
+                });
+                // Grouped bars carry a legend; append the xy-shaped series array
+                // (name/color/cell-count) from the legend entries zipped with the
+                // per-series counts. Plain and tinted bars have no legend and emit
+                // byte-identical meta to before.
+                if !self.legend.is_empty() {
+                    let series: Vec<serde_json::Value> = self
+                        .legend
+                        .iter()
+                        .zip(&self.source.series_points)
+                        .map(|(e, count)| {
+                            json!({
+                                "name": e.name,
+                                "color": e.color.hex(),
+                                "points": count,
+                            })
+                        })
+                        .collect();
+                    base.as_object_mut()
+                        .expect("bar meta is an object")
+                        .insert("series".to_string(), json!(series));
+                }
+                base
+            }
             Mark::Line | Mark::Point | Mark::Area => {
                 // x type/domain: nominal reports its category list, quantitative
                 // its numeric [min, max]. Series (name/color/count) come from the

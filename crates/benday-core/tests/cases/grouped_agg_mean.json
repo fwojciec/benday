@@ -1,0 +1,1 @@
+{"data":{"values":[{"q":"Q1","dir":"in","n":40},{"q":"Q1","dir":"in","n":20},{"q":"Q1","dir":"out","n":25},{"q":"Q2","dir":"in","n":50},{"q":"Q2","dir":"out","n":30},{"q":"Q2","dir":"out","n":10}]},"mark":"bar","encoding":{"x":{"field":"q"},"y":{"field":"n","aggregate":"mean"},"color":{"field":"dir"}}}

@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `xOffset` is not supported; grouping is expressed with color alone — set encoding.color to the grouping field

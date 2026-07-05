@@ -1,0 +1,1 @@
+{"data":{"values":[{"q":"Q1","n":40},{"q":"Q2","n":55}]},"mark":"bar","encoding":{"x":{"field":"q"},"y":{"field":"n"},"xOffset":{"value":5}}}
