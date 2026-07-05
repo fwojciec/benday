@@ -10,7 +10,8 @@ const EXAMPLES: &str = r#"Examples:
   echo '{"data":{"values":[{"m":"jan","v":3},{"m":"feb","v":7}]},"mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}' | benday
   query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}'   # rows on stdin
   benday --spec-file chart.json --marker octant --theme lichtenstein
-  echo '{"data":{"values":[{"site":"north","n":128},{"site":"south","n":94}]},"mark":"bar","encoding":{"x":{"field":"n"},"y":{"field":"site"}}}' | benday   # quant x + categorical y = horizontal bars
+  echo '{"data":{"values":[{"site":"north","n":128},{"site":"south","n":94}]},"mark":"bar","encoding":{"x":{"field":"n"},"y":{"field":"site"}}}' | benday   # horizontal bars
+  query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"quarter"},"y":{"field":"n"},"color":{"field":"direction"}}}'   # grouped bars
 
 Spec (a strict Vega-Lite subset):
   { "data"?: { "values": [ {..row..}, ... ] },        // optional; omit to pipe rows on stdin
@@ -23,10 +24,26 @@ Spec (a strict Vega-Lite subset):
     },
     "title"?: str, "width"?: cells, "height"?: cells }
 
-Stdin: with --spec/--spec-file, stdin carries the data (a columnar envelope or
-  a JSON array of row objects); with no spec flag, stdin is the spec itself.
+Bar rules (the encoding decides — no extra flags):
+  - Orientation: categorical x + quantitative y = vertical bars; quantitative x
+    + categorical y = HORIZONTAL bars (best for rankings: one row per bar,
+    height auto-sized, long names get a label column). Rows chart in the order
+    they arrive, so ORDER BY in the producing query IS the sort.
+  - Grouping: "color" naming a THIRD field splits each category into a grouped
+    cluster, one bar per value of that field, with a legend. "color" naming the
+    category field itself just tints the bars.
+  - "aggregate" rides the QUANTITATIVE (value) channel: y for vertical bars,
+    x for horizontal. For line/point/area, "color" splits rows into series.
 
-Exit codes: 0 ok, 2 invalid spec, 3 data does not fit the encoding.
+Stdin: with --spec/--spec-file, stdin carries the data (a columnar envelope
+  {"columns":[..],"rows":[[..]]} — extra keys ignored — or a JSON array of row
+  objects); with no spec flag, stdin is the spec itself.
+
+Verify: --meta prints scale domains, resolved series colors, and dropped-row
+  counts as JSON on stderr — confirm what was drawn without parsing the chart.
+
+Exit codes: 0 ok, 2 invalid spec, 3 data does not fit the encoding. Errors are
+  JSON on stderr, and the message names the fix.
 "#;
 
 /// Crisp terminal charts from a Vega-Lite-style JSON spec. Built to be
