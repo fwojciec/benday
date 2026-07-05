@@ -80,14 +80,21 @@ inflate the niced domain — max 6 becomes max 10 at step 5 — so inflation
 only happens when nothing tighter is even). Termination is guaranteed:
 `k = 1` (just min and max labeled) divides everything.
 
-The dice chart at the new default: domain 0–6, step 2, four labels
-(0/2/4/6) every 4 rows — perfectly even.
+The dice chart (domain 0–6, Heckbert step 1, k = 6): at the new default
+height 13 (12 intervals, 12 % 6 = 0) step 1 is already even — all seven
+labels, one every 2 rows. At today's height 10 (9 intervals) the ladder
+coarsens to step 2 (k = 3, 9 % 3 = 0) — labels 0/2/4/6 every 3 rows. Either
+way: even.
 
 Consequences: sometimes fewer labels, in exchange for regular rhythm (which
 reads more trustworthy than dense-but-ragged); the row-collision
 "first-wins" workaround becomes dead code and is deleted; floating-point
 rounding jitter is eliminated as a class (rows are computed by integer
-spacing, not per-tick float rounding).
+spacing, not per-tick float rounding). Two accepted costs: domain inflation
+moves normalized mark geometry in the affected charts (the marks redraw
+against the wider domain — correct, just different), and awkward heights
+degrade harder (height 6 has 5 intervals, prime, so most domains fall back
+to min/max-only labels — acceptable for sparkline-sized charts).
 
 ## Palette cap
 
@@ -99,13 +106,20 @@ error — kind `data`, exit 3:
 ```
 
 Reject loudly; the message names the fix, agents self-correct in one retry.
-`theme.series()` loses its `%` cycle and becomes a direct index — compile
-guards the bound, and the invariant is documented at the call site.
+
+The cap guards the **xy-series path only**. Categorical bars also draw from
+the palette (one color per x category), but there color is decoration on
+top of a position-identified, x-labeled bar — cycling is harmless, and a
+12-category bar chart is legitimate. `theme.series()` therefore keeps its
+`%` cycle with a doc comment stating exactly this split: xy callers are
+guarded upstream by compile, bar callers may wrap.
 
 ## Testing & snapshot migration
 
-This cycle inverts the referee rule: the default-size change alone diffs
-**every** gallery snapshot, so "zero diffs" is meaningless here. Protection
+This cycle inverts the referee rule: the tick and layout changes diff
+**every** gallery snapshot (the gallery pins explicit sizes, so the default
+change itself lands in the corpus, which compiles at defaults), and "zero
+diffs" is meaningless here. Protection
 comes from three layers:
 
 1. **The corpus pins semantics.** Scene-level snapshots capture what each
