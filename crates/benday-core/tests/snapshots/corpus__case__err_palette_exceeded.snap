@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): 9 series exceed the 8 distinguishable series colors; aggregate or filter "s"

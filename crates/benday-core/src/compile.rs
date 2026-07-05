@@ -461,6 +461,20 @@ fn compile_xy(
 
     let multi = series.len() > 1 || series_field.is_some();
 
+    // Color is the ONLY channel identifying an xy series, so cycling the
+    // palette would make two series indistinguishable — reject loudly.
+    // (Categorical bars may cycle: each bar is identified by its x label.)
+    if series.len() > theme.palette.len() {
+        let cf = series_field
+            .as_deref()
+            .expect("more than one series requires a color field");
+        return Err(Error::Data(format!(
+            "{} series exceed the {} distinguishable series colors; aggregate or filter \"{cf}\"",
+            series.len(),
+            theme.palette.len(),
+        )));
+    }
+
     // --- Layout: optional title row above the plot, y gutter to its left,
     // legend below the x labels.
     // Title gets a blank row beneath it — breathing room (design doc).

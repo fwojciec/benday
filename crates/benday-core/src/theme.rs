@@ -69,6 +69,11 @@ impl Theme {
         mix(self.grad_ends.0, self.grad_ends.1, t.clamp(0.0, 1.0)).rgb()
     }
 
+    /// The i-th series color. Wraps past the palette end: safe for categorical
+    /// BARS (each bar is position-identified by its x label; color is
+    /// decoration) — xy callers are guarded by compile's palette cap, which
+    /// rejects charts where color alone must distinguish more series than the
+    /// palette holds.
     pub fn series(&self, i: usize) -> Rgb {
         self.palette[i % self.palette.len()]
     }
