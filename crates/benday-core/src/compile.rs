@@ -15,8 +15,8 @@ use crate::error::Error;
 use crate::ingest::{Row, Table};
 use crate::scale::{fmt_tick, Linear};
 use crate::scene::{
-    Bar, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size, Source, XAxis,
-    YAxis, YTick,
+    Bar, BarDirection, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size,
+    Source, XAxis, YAxis, YTick,
 };
 use crate::spec::{Aggregate, FieldType, Mark, Spec};
 use crate::theme::Theme;
@@ -265,6 +265,7 @@ fn compile_bar(
         };
         bars.push(Bar {
             x0: x0 as f64 / plot_w as f64,
+            y0: 1.0 - y.norm(*v),
             w: bar_w as f64 / plot_w as f64,
             h: y.norm(*v),
             color,
@@ -305,7 +306,10 @@ fn compile_bar(
             tick_cols: Vec::new(),
             labels,
         },
-        marks: vec![SceneMark::Bars { bars }],
+        marks: vec![SceneMark::Bars {
+            bars,
+            direction: BarDirection::Vertical,
+        }],
         dropped_rows: dropped,
         source: Source {
             mark: Mark::Bar,

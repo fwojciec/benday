@@ -10,10 +10,16 @@
 
 use crate::ansi::Buffer;
 use crate::render::{BarStyle, Rendered};
-use crate::scene::{Scene, SceneMark};
+use crate::scene::{BarDirection, Scene, SceneMark};
 
-/// Bar-fill glyph ramp for block bars, indexed 0..8 by eighths of a cell.
+/// Bar-fill glyph ramp for vertical block bars, indexed 0..8 by eighths of a
+/// cell filled from the BOTTOM up.
 const EIGHTHS: [char; 8] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'];
+
+/// Bar-fill glyph ramp for horizontal block bars, indexed 0..8 by eighths of a
+/// cell filled from the LEFT (U+258F down to U+2589); index 8 is `█`, handled
+/// separately like `EIGHTHS`.
+const LEFT_EIGHTHS: [char; 8] = [' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉'];
 
 /// Everything the rasterizer needs beyond the Scene itself. The theme is
 /// deliberately absent: colors are compile-time facts baked into the Scene.
@@ -59,8 +65,10 @@ pub fn rasterize(scene: &Scene, opts: &RasterOptions) -> Rendered {
     match scene.marks.first() {
         Some(SceneMark::Bars { .. }) => {
             for mark in &scene.marks {
-                if let SceneMark::Bars { bars } = mark {
-                    rasterize_bars(&mut buf, bars, opts, gutter, top, plot_w, plot_h);
+                if let SceneMark::Bars { bars, direction } = mark {
+                    rasterize_bars(
+                        &mut buf, bars, *direction, opts, gutter, top, plot_w, plot_h,
+                    );
                 }
             }
         }
@@ -88,9 +96,11 @@ pub fn rasterize(scene: &Scene, opts: &RasterOptions) -> Rendered {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rasterize_bars(
     buf: &mut Buffer,
     bars: &[crate::scene::Bar],
+    direction: BarDirection,
     opts: &RasterOptions,
     gutter: usize,
     top: usize,
@@ -100,14 +110,36 @@ fn rasterize_bars(
     match opts.bar_style {
         BarStyle::Dots => {
             let mut canvas = PixelCanvas::new(plot_w, plot_h, opts.marker);
-            let ph = (plot_h * 4) as i64;
-            for bar in bars {
-                let x0 = (bar.x0 * plot_w as f64).round() as usize;
-                let bar_w = (bar.w * plot_w as f64).round() as usize;
-                let level = (bar.h * ph as f64).round() as i64;
-                for px in (x0 * 2) as i64..((x0 + bar_w) * 2) as i64 {
-                    for py in (ph - level)..ph {
-                        canvas.set(px, py, bar.color);
+            match direction {
+                BarDirection::Vertical => {
+                    // Verbatim from the pre-generalization single-direction path:
+                    // its exact rounding order (round(h*ph) then fill ph-level..ph)
+                    // must be preserved subpixel-for-subpixel.
+                    let ph = (plot_h * 4) as i64;
+                    for bar in bars {
+                        let x0 = (bar.x0 * plot_w as f64).round() as usize;
+                        let bar_w = (bar.w * plot_w as f64).round() as usize;
+                        let level = (bar.h * ph as f64).round() as i64;
+                        for px in (x0 * 2) as i64..((x0 + bar_w) * 2) as i64 {
+                            for py in (ph - level)..ph {
+                                canvas.set(px, py, bar.color);
+                            }
+                        }
+                    }
+                }
+                BarDirection::Horizontal => {
+                    // Length anchored at the rounded value extent; bar rows are
+                    // exact cell multiples by construction, so the y span is exact.
+                    for bar in bars {
+                        let px_lo = (bar.x0 * plot_w as f64).round() as i64 * 2;
+                        let px_hi = ((bar.x0 + bar.w) * plot_w as f64).round() as i64 * 2;
+                        let py_lo = (bar.y0 * plot_h as f64).round() as i64 * 4;
+                        let py_hi = ((bar.y0 + bar.h) * plot_h as f64).round() as i64 * 4;
+                        for px in px_lo..px_hi {
+                            for py in py_lo..py_hi {
+                                canvas.set(px, py, bar.color);
+                            }
+                        }
                     }
                 }
             }
@@ -119,27 +151,55 @@ fn rasterize_bars(
                 }
             }
         }
-        BarStyle::Blocks => {
-            for bar in bars {
-                let x0 = (bar.x0 * plot_w as f64).round() as usize;
-                let bar_w = (bar.w * plot_w as f64).round() as usize;
-                let level = (bar.h * (plot_h * 8) as f64).round() as i64;
-                for r in 0..plot_h {
-                    let fill = level - ((plot_h - 1 - r) * 8) as i64;
-                    if fill <= 0 {
-                        continue;
-                    }
-                    let ch = if fill >= 8 {
-                        '█'
-                    } else {
-                        EIGHTHS[fill as usize]
-                    };
-                    for c in 0..bar_w {
-                        buf.set(gutter + 1 + x0 + c, top + r, ch, Some(bar.color));
+        BarStyle::Blocks => match direction {
+            BarDirection::Vertical => {
+                // Verbatim bottom-up eighths fill from the pre-generalization path.
+                for bar in bars {
+                    let x0 = (bar.x0 * plot_w as f64).round() as usize;
+                    let bar_w = (bar.w * plot_w as f64).round() as usize;
+                    let level = (bar.h * (plot_h * 8) as f64).round() as i64;
+                    for r in 0..plot_h {
+                        let fill = level - ((plot_h - 1 - r) * 8) as i64;
+                        if fill <= 0 {
+                            continue;
+                        }
+                        let ch = if fill >= 8 {
+                            '█'
+                        } else {
+                            EIGHTHS[fill as usize]
+                        };
+                        for c in 0..bar_w {
+                            buf.set(gutter + 1 + x0 + c, top + r, ch, Some(bar.color));
+                        }
                     }
                 }
             }
-        }
+            BarDirection::Horizontal => {
+                // Left-anchored eighths fill: full columns get `█`, the fractional
+                // end column gets the left-eighth glyph for the remainder. Bar rows
+                // are exact cell multiples, so the y span rounds cleanly.
+                for bar in bars {
+                    let x0 = (bar.x0 * plot_w as f64).round() as usize;
+                    let r0 = (bar.y0 * plot_h as f64).round() as usize;
+                    let r1 = ((bar.y0 + bar.h) * plot_h as f64).round() as usize;
+                    let level = (bar.w * (plot_w * 8) as f64).round() as i64;
+                    for c in 0..plot_w {
+                        let fill = level - (c * 8) as i64;
+                        if fill <= 0 {
+                            continue;
+                        }
+                        let ch = if fill >= 8 {
+                            '█'
+                        } else {
+                            LEFT_EIGHTHS[fill as usize]
+                        };
+                        for r in r0..r1 {
+                            buf.set(gutter + 1 + x0 + c, top + r, ch, Some(bar.color));
+                        }
+                    }
+                }
+            }
+        },
     }
 }
 
@@ -381,5 +441,127 @@ mod tests {
         c.set(0, 0, Rgb(255, 0, 0));
         assert_eq!(c.cell(0, 0), Some(('⠁', Rgb(255, 0, 0))));
         assert_eq!(c.cell(1, 0), None);
+    }
+
+    /// Rasterize a single bar into a fresh buffer and return the plot rows as
+    /// strings. Column 0 is the (empty) gutter — `rasterize_bars` draws marks at
+    /// `gutter + 1 + cx`, so with `gutter = 0` bars start at column 1 and every
+    /// row carries one leading gutter space.
+    fn bar_rows(
+        direction: BarDirection,
+        bar_style: BarStyle,
+        plot_w: usize,
+        plot_h: usize,
+        bar: crate::scene::Bar,
+    ) -> Vec<String> {
+        let mut buf = Buffer::new(plot_w + 1, plot_h);
+        let opts = RasterOptions {
+            marker: Marker::Octant,
+            bar_style,
+            color: false,
+        };
+        rasterize_bars(&mut buf, &[bar], direction, &opts, 0, 0, plot_w, plot_h);
+        let out = buf.to_ansi(false);
+        let mut rows: Vec<String> = out.split('\n').map(str::to_string).collect();
+        rows.pop(); // trailing newline after the last row
+        rows
+    }
+
+    #[test]
+    fn rasterize_bars_glyph_rows() {
+        use crate::scene::Bar;
+        use BarDirection::{Horizontal, Vertical};
+
+        struct Case {
+            name: &'static str,
+            direction: BarDirection,
+            style: BarStyle,
+            plot_w: usize,
+            plot_h: usize,
+            bar: Bar,
+            expected: &'static [&'static str],
+        }
+
+        let color = Rgb(1, 2, 3);
+        let cases = [
+            // Vertical blocks: h = 0.75 over 2 rows → 12 eighths. Bottom row full
+            // (`█`), top row 4 eighths from the bottom (`▄`).
+            Case {
+                name: "vertical blocks",
+                direction: Vertical,
+                style: BarStyle::Blocks,
+                plot_w: 1,
+                plot_h: 2,
+                bar: Bar {
+                    x0: 0.0,
+                    y0: 0.25,
+                    w: 1.0,
+                    h: 0.75,
+                    color,
+                },
+                expected: &[" ▄", " █"],
+            },
+            // Horizontal blocks: w = 0.75 over 2 cols → 12 eighths. Left col full
+            // (`█`), end col 4 eighths from the left (`▌`).
+            Case {
+                name: "horizontal blocks",
+                direction: Horizontal,
+                style: BarStyle::Blocks,
+                plot_w: 2,
+                plot_h: 1,
+                bar: Bar {
+                    x0: 0.0,
+                    y0: 0.0,
+                    w: 0.75,
+                    h: 1.0,
+                    color,
+                },
+                expected: &[" █▌"],
+            },
+            // Vertical dots: h = 0.5 over 2 cells fills the bottom cell fully (`█`),
+            // top cell empty.
+            Case {
+                name: "vertical dots",
+                direction: Vertical,
+                style: BarStyle::Dots,
+                plot_w: 1,
+                plot_h: 2,
+                bar: Bar {
+                    x0: 0.0,
+                    y0: 0.5,
+                    w: 1.0,
+                    h: 0.5,
+                    color,
+                },
+                expected: &["", " █"],
+            },
+            // Horizontal dots: w = 1.0 over 2 cells fills both cells fully (`██`).
+            Case {
+                name: "horizontal dots",
+                direction: Horizontal,
+                style: BarStyle::Dots,
+                plot_w: 2,
+                plot_h: 1,
+                bar: Bar {
+                    x0: 0.0,
+                    y0: 0.0,
+                    w: 1.0,
+                    h: 1.0,
+                    color,
+                },
+                expected: &[" ██"],
+            },
+        ];
+
+        for case in cases {
+            let rows = bar_rows(
+                case.direction,
+                case.style,
+                case.plot_w,
+                case.plot_h,
+                case.bar,
+            );
+            assert_eq!(rows, case.expected, "case: {}", case.name);
+        }
     }
 }

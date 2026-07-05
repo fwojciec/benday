@@ -105,6 +105,10 @@ pub enum SceneMark {
     Bars {
         /// One entry per category, in category order.
         bars: Vec<Bar>,
+        /// Bar orientation. Rect anchors can't encode it: a bottom-row
+        /// horizontal bar has `x0 == 0` AND `y0 + h == 1`, exactly a vertical
+        /// bar's signature — so the direction is carried once per mark.
+        direction: BarDirection,
     },
     Path {
         series: SeriesRef,
@@ -121,14 +125,24 @@ pub enum SceneMark {
     },
 }
 
+/// One bar as a normalized rect over the plot area: `x0/w` as fractions of
+/// plot width, `y0/h` as fractions of plot height, y0 = 0 at the TOP (same
+/// orientation as point geometry). Vertical bars: y0 = 1 - h, full h to the
+/// baseline. Horizontal bars: x0 = 0, w = value fraction.
 #[derive(Serialize)]
 pub struct Bar {
-    /// Left edge and width as fractions of plot width (exact multiples of 1/plot_w).
     pub x0: f64,
+    pub y0: f64,
     pub w: f64,
-    /// Height as a fraction of plot height (y.norm of the aggregated value).
     pub h: f64,
     pub color: Rgb,
+}
+
+#[derive(Serialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BarDirection {
+    Vertical,
+    Horizontal,
 }
 
 #[derive(Serialize)]
@@ -305,17 +319,20 @@ mod tests {
                 bars: vec![
                     Bar {
                         x0: 0.0,
+                        y0: 0.4,
                         w: 0.5,
                         h: 0.6,
                         color: Rgb(0, 128, 255),
                     },
                     Bar {
                         x0: 0.5,
+                        y0: 0.0,
                         w: 0.5,
                         h: 1.0,
                         color: Rgb(255, 128, 0),
                     },
                 ],
+                direction: BarDirection::Vertical,
             }],
             dropped_rows: 0,
             source: Source {
@@ -401,17 +418,20 @@ mod tests {
                 "bars": [
                   {
                     "x0": 0.0,
+                    "y0": 0.4,
                     "w": 0.5,
                     "h": 0.6,
                     "color": "#0080ff"
                   },
                   {
                     "x0": 0.5,
+                    "y0": 0.0,
                     "w": 0.5,
                     "h": 1.0,
                     "color": "#ff8000"
                   }
-                ]
+                ],
+                "direction": "vertical"
               }
             }
           ],
