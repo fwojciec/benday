@@ -51,7 +51,12 @@ scale, calendar ticks, parsing, for line/point/area; **phase 2** —
 - **Marks.** Line, point, and area place values at true positions in time.
   Bar with temporal x REQUIRES a `timeUnit` (bars need discrete buckets);
   the error names the fix. Temporal y and temporal color: no use case,
-  YAGNI, out.
+  YAGNI, out — but "out" means REJECTED WITH A TEACHING ERROR, not left to
+  fall through. Today a temporal y would hit the generic "holds categorical
+  values" message (`xy.rs` y-gate) and a temporal color would silently
+  explode into one series per timestamp; both get explicit errors naming
+  the resolved type and the fix (aggregate the time field, or put time
+  on x).
 
 ## Time representation and parsing
 
@@ -68,6 +73,12 @@ Accepted input, a deliberate documented subset:
 - either of the above with `Z` or `±hh:mm` — offset applied, then
   discarded; all values land on one comparable axis
 - `14:30:00` — time-of-day, anchored to epoch day zero
+
+Values WITHOUT an offset are read as UTC civil time; values WITH one are
+normalized to UTC. A column mixing the two therefore compares correctly
+only if its naive values really are UTC — benday cannot know, so `--help`
+documents the convention instead of guessing. Truncation and tick
+boundaries are computed in UTC.
 
 Anything else fails with the row number, the offending value, and the four
 accepted shapes.
@@ -107,20 +118,48 @@ rollovers (the d3 idiom, suited to width-starved terminals):
 
 ## Compile pipeline
 
-Temporal x rides the quantitative code path in `compile/xy.rs` — values are
-f64 millis, so scene geometry, color series-splitting, and rasterization
-are untouched. The single branch point is scale construction:
-`FieldType::Temporal` selects the calendar scale instead of
-`Linear::nice_from`. The Scene IR does not change; a temporal axis is an
-axis whose labels came from a different formatter. Existing snapshots must
-show ZERO diffs (no current corpus case declares DATE with a line/point
-mark — verify before starting, per snapshot discipline).
+`compile/xy.rs` today asks `xt == Quantitative` at four sites: row parsing
+(numeric vs interned category), the ordinal category sort, x-scale
+selection, and the axis/domain output. Temporal is CONTINUOUS at every one
+of those forks, so the change is a two-way classification — continuous
+(quantitative | temporal) vs categorical — threaded through all four,
+not a scale swap at one. Within the continuous arm, temporal differs in
+exactly three places: the value reader (parse ISO instead of `data::num`),
+the scale (calendar ladder instead of `Linear::nice_from`), and the label
+formatter. Geometry, color series-splitting, and rasterization are
+untouched.
 
-Phase 2 wires `timeUnit` as a transform stage before aggregation: truncate
-each timestamp to its bucket, then the EXISTING aggregate machinery
-(`sum`/`mean`/`count`/…) groups by the truncated value. No new aggregation
-code. `count` with no y field yields the events-per-hour debug histogram in
-one small spec — the raw-gcloud-logs story.
+**Scene IR and `--meta`.** `Scene::meta()` currently derives the reported
+x type from `categories.is_none() → "quantitative"` — a temporal axis
+would lie to the very API agents use to verify their chart. `Source` gains
+an optional resolved-x-type field, `skip_serializing_if = None` (existing
+scene.rs precedent), so every current snapshot stays byte-identical.
+`--meta` then reports `"type": "temporal"` and the x domain as ISO strings
+rather than raw millis.
+
+**Snapshot migration, authorized up front.** One corpus case —
+`declared_date_ordinal.json`, a line chart with a declared DATE x, the
+only date-typed case — pins today's ordinal behavior (categorical labels,
+equal spacing). Phase 1 changes it BY DESIGN: temporal scale, true
+spacing, calendar ticks. That diff is authorized here, must be audited
+line by line, and the case is renamed `declared_date_temporal` since its
+name encodes the reversed doctrine. Every other existing snapshot must
+show zero diffs. The explicit-ordinal escape hatch gets a NEW case
+pinning the old behavior under `"type": "ordinal"`.
+
+Phase 2 wires `timeUnit` as a transform stage before aggregation, and the
+bucket representation is chosen to ride the existing categorical bar path
+untouched: truncation emits a CANONICAL ISO-PREFIX LABEL per bucket
+(`2026`, `2026-Q2`, `2026-06`, `2026-06-14`, `2026-06-14 09h`, …) —
+zero-padded, so the scanner's text interning groups correctly and
+`sort_cats`' lexical order IS chronological. After the scan, the bucket
+list is DENSIFIED: every calendar bucket between min and max is inserted,
+and `aggregate_cells` already renders an empty cell as a gap at a stable
+position — a quiet hour shows as absence, which is the whole point of the
+clustering story. `count` semantics: an empty bucket counts 0 (a zero
+bar), not a gap. No new aggregation code. `count` with no y field yields
+the events-per-hour debug histogram in one small spec — the
+raw-gcloud-logs story.
 
 ## Errors that teach (error strings are API)
 
@@ -131,16 +170,28 @@ one small spec — the raw-gcloud-logs story.
   continuous time."
 - `timeUnit` on a non-temporal field → names the type the field resolved to
   and why (which precedence rung decided).
+- Temporal y → names the resolved type and the fix (aggregate it, or put
+  time on x) instead of today's generic "holds categorical values".
+- Temporal color → rejected before it becomes one series per timestamp;
+  the error suggests a categorical field or a timeUnit-bucketed phase-2
+  alternative.
 
 `--help` gains a temporal section with two worked examples: a quarterly
 trend line, and raw log timestamps → hourly bar counts.
 
 ## Testing
 
-- Property tests on the `time` module: epoch↔civil round-trips across
-  centuries; leap-year and month-length edges pinned.
+- The `time` module is verified by EXHAUSTIVE round-trip, not property
+  testing: iterate every civil day 1600–2400 (~292k iterations, trivial in
+  a unit test), assert epoch↔civil round-trips, pin leap-year and
+  month-length edges. Deterministic, stronger than sampling, and keeps
+  even dev-dependencies unchanged — "no new dependency" holds for both the
+  published crate and the workspace.
 - Spec→scene corpus cases: temporal line (regular and gappy), promoted
   string column, explicit-ordinal escape hatch, each timeUnit, every
-  teaching error.
+  teaching error (including temporal y and temporal color).
+- The migrated `declared_date_temporal` case (née `declared_date_ordinal`)
+  is the one authorized diff; its new snapshot is audited line by line.
 - Gallery snapshots pin the label idiom: day/month/quarter/hour ladders,
-  the year-rollover context line, the two-endpoint fallback.
+  the year-rollover context line, the two-endpoint fallback, and a
+  densified hourly count with a quiet-hours zero run.
