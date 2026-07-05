@@ -70,7 +70,7 @@ pub struct LegendEntry {
 pub struct YAxis {
     pub domain: [f64; 2],
     pub step: f64,
-    /// Deduped, in draw order. `row` is buffer-absolute.
+    /// In draw order; rows are distinct by construction. `row` is buffer-absolute.
     pub ticks: Vec<YTick>,
 }
 

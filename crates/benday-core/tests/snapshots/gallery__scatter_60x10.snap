@@ -3,6 +3,7 @@ source: crates/benday-core/tests/gallery.rs
 expression: bundle
 ---
                      latency vs payload size
+
 60┤                                                  ⣀
   │                                                  ⠉   ⣤
   │                                           ⠛  ⢠⡄
@@ -29,7 +30,7 @@ expression: bundle
   ],
   "size": {
     "columns": 63,
-    "rows": 13
+    "rows": 14
   },
   "x": {
     "domain": [

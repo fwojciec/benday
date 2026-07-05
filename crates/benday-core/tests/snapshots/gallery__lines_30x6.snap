@@ -3,7 +3,7 @@ source: crates/benday-core/tests/gallery.rs
 expression: bundle
 ---
           revenue by region
-    ── west   ── east
+
 220┤                      ⢀⠔
    │               ⢀⡠⠔⠢⠤⣀⠔⠁
    │           ⢀⠤⠒⠊⠁
@@ -12,6 +12,7 @@ expression: bundle
  80┤   ⠒⠢⠤⠤⠒⠊⠉⠉⠉⠁
    └┴──────────────┴─────────────┴
     0              5            10
+    ── west   ── east
 
 --- meta ---
 {
@@ -31,7 +32,7 @@ expression: bundle
   ],
   "size": {
     "columns": 34,
-    "rows": 10
+    "rows": 11
   },
   "x": {
     "domain": [

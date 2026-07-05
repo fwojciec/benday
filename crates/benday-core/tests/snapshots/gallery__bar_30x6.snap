@@ -3,6 +3,7 @@ source: crates/benday-core/tests/gallery.rs
 expression: bundle
 ---
             weekly signups
+
 100┤              ⣶⣶           ⣀⣀
    │     ⣶⣶       ⣿⣿           ⣿⣿
    │     ⣿⣿       ⣿⣿  ⣿⣿       ⣿⣿
@@ -18,7 +19,7 @@ expression: bundle
   "mark": "bar",
   "size": {
     "columns": 34,
-    "rows": 9
+    "rows": 10
   },
   "x": {
     "categories": [

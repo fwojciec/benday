@@ -9,7 +9,7 @@ expression: snapshot
   },
   "plot": {
     "x": 3,
-    "y": 1,
+    "y": 0,
     "w": 60,
     "h": 10
   },
@@ -23,13 +23,13 @@ expression: snapshot
       "name": "west",
       "color": "#55c4fe",
       "col": 3,
-      "row": 0
+      "row": 12
     },
     {
       "name": "east",
       "color": "#6cd092",
       "col": 13,
-      "row": 0
+      "row": 12
     }
   ],
   "y_axis": {
@@ -43,13 +43,13 @@ expression: snapshot
         "value": 6.0,
         "frac": 0.0,
         "label": "6",
-        "row": 10
+        "row": 9
       },
       {
         "value": 14.0,
         "frac": 1.0,
         "label": "14",
-        "row": 1
+        "row": 0
       }
     ]
   },
@@ -70,27 +70,27 @@ expression: snapshot
       {
         "text": "1.0",
         "col": 2,
-        "row": 12
+        "row": 11
       },
       {
         "text": "1.5",
         "col": 17,
-        "row": 12
+        "row": 11
       },
       {
         "text": "2.0",
         "col": 32,
-        "row": 12
+        "row": 11
       },
       {
         "text": "2.5",
         "col": 46,
-        "row": 12
+        "row": 11
       },
       {
         "text": "3.0",
         "col": 60,
-        "row": 12
+        "row": 11
       }
     ]
   },

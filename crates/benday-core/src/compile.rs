@@ -222,9 +222,8 @@ fn compile_bar(
     let categorical = spec.encoding.color.is_some();
 
     // --- Layout.
-    let title_rows = usize::from(spec.title.is_some());
-    // Bars carry no legend.
-    let legend_rows = 0usize;
+    // Title gets a blank row beneath it — breathing room (design doc).
+    let title_rows = if spec.title.is_some() { 2 } else { 0 };
     let gutter = y
         .ticks()
         .iter()
@@ -232,8 +231,8 @@ fn compile_bar(
         .max()
         .unwrap_or(1);
     let columns = gutter + 1 + plot_w;
-    let total_rows = title_rows + legend_rows + plot_h + 2;
-    let top = title_rows + legend_rows;
+    let total_rows = title_rows + plot_h + 2;
+    let top = title_rows;
 
     let title = spec.title.as_deref().map(|t| {
         let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
@@ -462,9 +461,10 @@ fn compile_xy(
 
     let multi = series.len() > 1 || series_field.is_some();
 
-    // --- Layout: title/legend rows above the plot, y gutter to its left.
-    let title_rows = usize::from(spec.title.is_some());
-    let legend_rows = usize::from(multi);
+    // --- Layout: optional title row above the plot, y gutter to its left,
+    // legend below the x labels.
+    // Title gets a blank row beneath it — breathing room (design doc).
+    let title_rows = if spec.title.is_some() { 2 } else { 0 };
     let gutter = yscale
         .ticks()
         .iter()
@@ -472,8 +472,7 @@ fn compile_xy(
         .max()
         .unwrap_or(1);
     let columns = gutter + 1 + plot_w;
-    let total_rows = title_rows + legend_rows + plot_h + 2;
-    let top = title_rows + legend_rows;
+    let top = title_rows;
 
     let title = spec.title.as_deref().map(|t| {
         let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
@@ -484,21 +483,33 @@ fn compile_xy(
         }
     });
 
-    // Legend (multi-series only): "── name" entries advancing 3 + len + 3.
+    // Legend (multi-series only): "── name" entries flow below the x labels,
+    // wrapping before the right edge. Entries are never clipped; a name wider
+    // than the whole row is visibly truncated with '…'.
+    let legend_row0 = top + plot_h + 2;
     let mut legend: Vec<LegendEntry> = Vec::new();
     if multi {
-        let mut x = gutter + 1;
+        let left = gutter + 1;
+        let max_name = columns.saturating_sub(left + 3);
+        let (mut col, mut row) = (left, legend_row0);
         for (i, s) in series.iter().enumerate() {
-            let len = s.name.chars().count();
+            let name = truncate(&s.name, max_name);
+            let w = 3 + name.chars().count(); // "── " + name
+            if col > left && col + w > columns {
+                col = left;
+                row += 1;
+            }
             legend.push(LegendEntry {
-                name: s.name.clone(),
+                name,
                 color: theme.series(i),
-                col: x,
-                row: title_rows,
+                col,
+                row,
             });
-            x += 3 + len + 3;
+            col += w + 3;
         }
     }
+    let legend_rows = legend.last().map_or(0, |e| e.row + 1 - legend_row0);
+    let total_rows = top + plot_h + 2 + legend_rows;
 
     let ticks = y_ticks(&yscale, plot_h, top);
 
