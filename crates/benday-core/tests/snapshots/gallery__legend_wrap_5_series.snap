@@ -1,0 +1,73 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+                   legend wraps, never clips
+
+8┤
+ │                                               ⣀⣀⣀⣀⣀⣀⣀⣀⡠⠤⠤⠤⠤
+ │             ⣀⣀⣀⣀⣀⣀⣀⣀⡠⠤⠤⠤⠤⠤⠤⠤⠤⠒⠒⠒⠒⠒⠒⠒⠒⠊⠉⠉⠉⠉⠉⠉⠉⠉
+6┤⠒⠒⠒⠒⠊⠉⠉⠉⠉⠉⠉⠉⠉                         ⢀⣀⣀⣀⣀⣀⣀⣀⣀⠤⠤⠤⠤⠤⠤⠤⠤⠔⠒⠒⠒⠒
+ │    ⢀⣀⣀⣀⣀⣀⣀⣀⣀⠤⠤⠤⠤⠤⠤⠤⠤⠔⠒⠒⠒⠒⠒⠒⠒⠒⠉⠉⠉⠉⠉⠉⠉⠉⠁
+ │⠉⠉⠉⠉⠁                    ⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒⠉⠉⠉⠉⠉
+4┤⠤⠤⠤⠤⠤⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉                      ⣀⣀⣀⣀⣀⣀⣀⣀⡠⠤⠤⠤⠤
+ │             ⣀⣀⣀⣀⣀⣀⣀⣀⡠⠤⠤⠤⠤⠤⠤⠤⠤⠒⠒⠒⠒⠒⠒⠒⠒⠊⠉⠉⠉⠉⠉⠉⠉⠉
+ │⠒⠒⠒⠒⠊⠉⠉⠉⠉⠉⠉⠉⠉                      ⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠒⠒⠒⠒⠒
+2┤⣀⣀⣀⣀⣀⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉
+ └┴───────────┴───────────┴──────────┴───────────┴───────────┴
+ 1.0         1.2         1.4        1.6         1.8        2.0
+  ── hot-full-table-scan   ── hot-window-projection
+  ── wide-50-columns   ── sparse-200-columns
+  ── ultra-sparse-800
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "line",
+  "series": [
+    {
+      "color": "#55c4fe",
+      "name": "hot-full-table-scan",
+      "points": 2
+    },
+    {
+      "color": "#6cd092",
+      "name": "hot-window-projection",
+      "points": 2
+    },
+    {
+      "color": "#eca851",
+      "name": "wide-50-columns",
+      "points": 2
+    },
+    {
+      "color": "#e698df",
+      "name": "sparse-200-columns",
+      "points": 2
+    },
+    {
+      "color": "#17d0d8",
+      "name": "ultra-sparse-800",
+      "points": 2
+    }
+  ],
+  "size": {
+    "columns": 62,
+    "rows": 17
+  },
+  "x": {
+    "domain": [
+      1.0,
+      2.0
+    ],
+    "field": "x",
+    "type": "quantitative"
+  },
+  "y": {
+    "domain": [
+      2.0,
+      8.0
+    ],
+    "field": "y"
+  }
+}

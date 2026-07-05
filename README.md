@@ -40,7 +40,7 @@ A strict subset of Vega-Lite:
     "y":      { "field": "...", "aggregate"?: "sum" | "mean" | "median" | "min" | "max" | "count" },
     "color"?: { "field": "..." }   // series split for line/point/area
   },
-  "title"?: "...", "width"?: 60, "height"?: 10   // plot area, in cells
+  "title"?: "...", "width"?: 72, "height"?: 13   // plot area, in cells
 }
 ```
 
@@ -105,6 +105,11 @@ an agent rendering charts for the human reading its transcript.
 - **A CLI, not an MCP server.** Plain process invocation is cheaper and
   more reliable for agents than a protocol wrapper. The core is a pure
   library (`benday-core`, no I/O), so wrapping it later is trivial.
+- **Legends wrap below the chart, never drop a series.** With `color`, the
+  legend sits under the x labels and wraps onto extra rows rather than
+  clipping or omitting entries — the caller must always see every series it
+  split by; more series than the theme palette has colors is a hard error,
+  not a silent color reuse.
 
 ## Architecture
 
