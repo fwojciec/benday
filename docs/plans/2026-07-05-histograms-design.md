@@ -110,16 +110,30 @@ Inference itself does not change.
 ## Axis, ticks, meta
 
 The binned x axis IS a linear value axis over `[lo, hi]` with
-`step = bin_step` — no new tick machinery. Every edge gets a tick mark;
-when the labels cannot all fit, the greedy `place_x_labels` collision
-rule thins LABELS while every tick mark stays.
+`step = bin_step` — no new tick machinery for SELECTION; when the labels
+cannot all fit, the greedy `place_x_labels` collision rule thins LABELS
+while tick marks stay.
 
-One rule pinned because two rounding conventions exist: edge tick
-columns are the SAME integers as the rect edges above
-(`edge_k = round(k/n * plot_w)`, last edge clamped to the plot) — NOT
-`value_axis_x`'s `(plot_w - 1)` convention — so ticks sit on bar
-boundaries at every width by construction. The gallery pins this
-alignment at several widths.
+Tick REPRESENTATION is constrained by the glyph grid: a `┴` occupies a
+cell, but a bin boundary lies BETWEEN cells, and the rasterizer draws
+tick columns only for `c < plot_w` (`raster/mod.rs`) — the true right
+domain edge (column `plot_w`) is unrepresentable, and clamping it to
+`plot_w - 1` would lie by a cell. Pinned resolution:
+
+- Tick glyphs at `edge_k` for `k = 0..n-1` ONLY — the same integers as
+  the rect edges above, each `┴` marking the cell whose LEFT boundary
+  is the true edge. Exact by construction; no second rounding
+  convention (`value_axis_x`'s `(plot_w - 1)` mapping is not used).
+- The RIGHT domain edge gets NO tick glyph. Its value stays readable as
+  a LABEL, right-aligned at the end of the axis row (`Placed` labels
+  are independent of `tick_cols`, and `place_x_labels` already clamps
+  into the buffer). A label without a tick is deliberate here.
+- Histograms are the first bar scenes with non-empty `tick_cols`
+  (the `XAxis` comment "Empty for bars" gets updated); the rasterizer
+  loop is already generic, so this is comment-only.
+
+The gallery pins this at several widths, including one where the
+rightmost interior tick and the right-aligned domain label nearly meet.
 
 No new `SceneMark` — binned bars are ordinary
 `Bars { direction: Vertical }` whose rects touch, and `XAxis` already
@@ -146,7 +160,7 @@ reports:
 
 ## Errors that teach (error strings are API)
 
-Ten, one constructor each in `compile/mod.rs`:
+Twelve, one constructor each in `compile/mod.rs`:
 
 1. `maxbins` and `step` together — they fight; pick one.
 2. `bin` on a temporal field — points at `timeUnit`.
@@ -162,8 +176,18 @@ Ten, one constructor each in `compile/mod.rs`:
 8. `bin` with `line`/`point`/`area` — bin is bar-only this cycle.
 9. `bin` and `timeUnit` on the same channel — one transform per
    channel.
-10. `step` producing more bins than plot cells — names the count, the
-    width, and both fixes (wider `step` or wider `--width`).
+10. The RESOLVED bin count exceeding plot cells — whichever knob caused
+    it (`step` too fine, `maxbins` absurdly high). Names the count, the
+    plot width, the culprit, and both fixes (coarser knob or wider
+    `--width`). Checked after selection, so it also backstops
+    zero-cell-wide bins.
+11. `maxbins` below 1 — must be a positive integer.
+12. `step` not a finite positive number. Both 11 and 12 are validated
+    in `preflight` with teaching messages — the serde types stay
+    permissive (plain numbers) precisely so validation can explain
+    instead of serde bouncing the spec with a generic type error.
+    (`nice_num` calls `log10` unguarded; nothing non-positive may reach
+    it.)
 
 ## Testing
 
