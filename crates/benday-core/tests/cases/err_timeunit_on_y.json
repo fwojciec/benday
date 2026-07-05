@@ -1,0 +1,1 @@
+{"data":{"values":[{"d":"2026-01-01","v":5}]},"mark":"bar","encoding":{"x":{"field":"d"},"y":{"field":"v","timeUnit":"month"}}}

@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): timeUnit "minute" spans 43200 buckets but the plot is 72 columns; use a coarser timeUnit (hour or day) or a wider size

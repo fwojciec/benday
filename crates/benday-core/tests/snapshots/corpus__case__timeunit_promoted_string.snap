@@ -1,0 +1,133 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 76,
+    "rows": 15
+  },
+  "plot": {
+    "x": 4,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      2.0
+    ],
+    "step": 0.5,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0.0",
+        "row": 12
+      },
+      {
+        "value": 0.5,
+        "frac": 0.25,
+        "label": "0.5",
+        "row": 9
+      },
+      {
+        "value": 1.0,
+        "frac": 0.5,
+        "label": "1.0",
+        "row": 6
+      },
+      {
+        "value": 1.5,
+        "frac": 0.75,
+        "label": "1.5",
+        "row": 3
+      },
+      {
+        "value": 2.0,
+        "frac": 1.0,
+        "label": "2.0",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "2026-06-14 09h",
+      "2026-06-14 10h",
+      "2026-06-14 11h"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "Jun 14 09:00",
+        "col": 10,
+        "row": 14
+      },
+      {
+        "text": "10:00",
+        "col": 38,
+        "row": 14
+      },
+      {
+        "text": "11:00",
+        "col": 62,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.05555555555555555,
+            "y0": 0.0,
+            "w": 0.2222222222222222,
+            "h": 1.0,
+            "color": "#ffc151"
+          },
+          {
+            "x0": 0.3888888888888889,
+            "y0": 1.0,
+            "w": 0.2222222222222222,
+            "h": 0.0,
+            "color": "#45aade"
+          },
+          {
+            "x0": 0.7222222222222222,
+            "y0": 0.5,
+            "w": 0.2222222222222222,
+            "h": 0.5,
+            "color": "#67d191"
+          }
+        ],
+        "direction": "vertical"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "ts",
+    "y_field": "ts",
+    "aggregate": "count",
+    "time_unit": "hour",
+    "series_points": [
+      2,
+      0,
+      1
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

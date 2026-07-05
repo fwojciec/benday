@@ -18,7 +18,7 @@ use crate::scene::{
     Bar, BarDirection, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size,
     Source, XAxis, YAxis, YTick,
 };
-use crate::spec::{Aggregate, Channel, FieldType, Mark, Spec};
+use crate::spec::{Aggregate, Channel, FieldType, Mark, Spec, TimeUnit};
 use crate::theme::Theme;
 use std::collections::HashMap;
 
@@ -126,6 +126,23 @@ fn validate(spec: &Spec) -> Result<(), Error> {
             ));
         }
     }
+    // `timeUnit` is bar-only and x-only this cycle (design §spec semantics).
+    // Reject the three misplacements up front, each naming the fix; the
+    // non-temporal-x case needs the resolved type and so lives in `bar_route`.
+    if spec.encoding.y.time_unit.is_some() {
+        return Err(timeunit_channel_error("y"));
+    }
+    if spec
+        .encoding
+        .color
+        .as_ref()
+        .is_some_and(|c| c.time_unit.is_some())
+    {
+        return Err(timeunit_channel_error("color"));
+    }
+    if spec.encoding.x.time_unit.is_some() && spec.mark != Mark::Bar {
+        return Err(timeunit_mark_error(spec.mark));
+    }
     Ok(())
 }
 
@@ -137,13 +154,26 @@ enum BarRoute {
 }
 
 /// Resolve bar orientation. RESOLUTION ORDER IS A HARDENED CONTRACT:
-///   1. `count` on a channel makes it THE quantitative value channel (count is
-///      intrinsically numeric and its field may be absent from rows entirely,
-///      inferring Nominal — which must not misroute). y-count → vertical,
-///      x-count → horizontal, both → error.
-///   2. Otherwise resolve both channel types through precedence (spec `type` >
-///      declared column type > inference) and route by the type pair.
-///   3. Both-categorical: a coercion rescue (stdin-cycle contract) reconsiders
+///   1. Count-on-both is ill-formed regardless of anything else → error.
+///   2. x-count makes x THE quantitative value channel (count is intrinsically
+///      numeric and ignores the field's values, so even a temporal field counts
+///      fine) → horizontal, BEFORE the temporal gate. `timeUnit` here has no
+///      time axis to bucket: teaching error, never silently ignored.
+///   3. The temporal/timeUnit gate, BEFORE the y-count rule (a y-count would
+///      otherwise short-circuit a temporal x into a raw-timestamp category
+///      axis). `timeUnit` present is EXPLICIT temporal intent, so it gates on
+///      the CANONICAL chain (`resolved_type`, whose inference rung PROMOTES an
+///      all-ISO-string column) — undeclared raw-log timestamps bucket without
+///      a declaration, the design's no-SQL workload. Non-temporal under that
+///      chain → teaching error naming the type and the deciding rung. WITHOUT
+///      a `timeUnit`, the native rung governs as always: declared/explicit
+///      temporal → teaching error; undeclared date strings stay categorical
+///      (the recorded stdin contract — see the closure below).
+///   4. y-count → vertical (count's field may be absent from rows entirely,
+///      inferring Nominal — which must not misroute through the type pair).
+///   5. Otherwise route both channel types (resolved through precedence: spec
+///      `type` > declared column type > inference) by the type pair.
+///   6. Both-categorical: a coercion rescue (stdin-cycle contract) reconsiders
 ///      channels WITHOUT an explicit spec `type`, biasing to vertical.
 fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
     let rows = &table.rows;
@@ -152,19 +182,23 @@ fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
     let x_count = matches!(spec.encoding.x.aggregate, Some(Aggregate::Count));
     let y_count = matches!(spec.encoding.y.aggregate, Some(Aggregate::Count));
 
-    // 1. Count rule FIRST.
-    match (x_count, y_count) {
-        (true, true) => {
-            return Err(Error::Spec(
-                "aggregate belongs on exactly one channel".into(),
-            ));
+    // 1. Count-on-both.
+    if x_count && y_count {
+        return Err(Error::Spec(
+            "aggregate belongs on exactly one channel".into(),
+        ));
+    }
+    // 2. x-count → horizontal, ahead of the temporal gate: count makes x the
+    // VALUE axis and never reads the field's values, so a temporal x is no
+    // obstacle — but a `timeUnit` on it has no time axis to bucket.
+    if x_count {
+        if spec.encoding.x.time_unit.is_some() {
+            return Err(timeunit_xcount_error());
         }
-        (false, true) => return Ok(BarRoute::Vertical),
-        (true, false) => return Ok(BarRoute::Horizontal),
-        (false, false) => {}
+        return Ok(BarRoute::Horizontal);
     }
 
-    // 2. Resolve both channel types through the precedence chain. The inference
+    // Resolve both channel types through the precedence chain. The inference
     // rung is NATIVE-typed: a JSON string is categorical-SHAPED even when its
     // contents are numeric (e.g. dice faces "1".."6"), so a string x stays a
     // category and the bar stays vertical. Numeric strings that genuinely belong
@@ -175,13 +209,38 @@ fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
             .unwrap_or_else(|| native_type(rows, f))
     };
     let xt = resolve(&spec.encoding.x, xf);
-    // A temporal x is the category axis of a bar that has no buckets yet; native
-    // inference never yields Temporal, so this fires only for a declared/explicit
-    // temporal x (the x-count case already routed horizontal above). `timeUnit`
-    // (task 4) supplies the buckets; until then, name the fix.
+
+    // 3. The temporal/timeUnit gate, before the y-count rule (a temporal x is
+    // the vertical bucket/category axis in every remaining shape).
+    if spec.encoding.x.time_unit.is_some() {
+        // `timeUnit` is explicit temporal intent, so the gate uses CANONICAL
+        // resolution — spec `type` > declared > `data::infer_type`, whose
+        // inference rung PROMOTES an undeclared all-ISO-string column — not
+        // the native rung above. Raw JSON logs bucket without a declaration.
+        // A non-temporal x names the type it resolved to AND which precedence
+        // rung decided — a teaching error.
+        let xt = resolved_type(&spec.encoding.x, table);
+        if xt != FieldType::Temporal {
+            return Err(timeunit_not_temporal_error(spec, table, xf, xt));
+        }
+        // Temporal + timeUnit: the vertical bucket path (compile_bar buckets on
+        // the timeUnit). A misplaced non-count aggregate on x is caught there.
+        return Ok(BarRoute::Vertical);
+    }
+    // Native inference never yields Temporal, so `xt == Temporal` here means a
+    // declared or explicit temporal x — undeclared date strings stay on the
+    // categorical routes below, exactly as before timeUnit existed.
     if xt == FieldType::Temporal {
+        // A temporal x with no buckets to draw; name the fix (`timeUnit`).
         return Err(bar_temporal_error());
     }
+
+    // 4. y-count → vertical.
+    if y_count {
+        return Ok(BarRoute::Vertical);
+    }
+
+    // 5. Route by the type pair (x already resolved above).
     let x_quant = xt == FieldType::Quantitative;
     let y_quant = resolve(&spec.encoding.y, yf) == FieldType::Quantitative;
     match (x_quant, y_quant) {
@@ -189,7 +248,7 @@ fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
         (true, false) => Ok(BarRoute::Horizontal),
         (true, true) => Err(bar_channel_error(xf, yf, "quantitative")),
         (false, false) => {
-            // 3. Coercion rescue — ONLY channels without an explicit spec type
+            // 6. Coercion rescue — ONLY channels without an explicit spec type
             // (an explicit `"type"` is stated intent, never overridden). Bias
             // to vertical (compat) when y coerces numeric, else horizontal.
             if spec.encoding.y.ty.is_none() && data::infer_type(rows, yf) == FieldType::Quantitative
@@ -389,6 +448,111 @@ fn temporal_parse_error(row: usize, value: &str, field: &str) -> Error {
     ))
 }
 
+/// The lowercase spelling of a resolved field type, for error prose.
+fn type_name(t: FieldType) -> &'static str {
+    match t {
+        FieldType::Quantitative => "quantitative",
+        FieldType::Nominal => "nominal",
+        FieldType::Ordinal => "ordinal",
+        FieldType::Temporal => "temporal",
+    }
+}
+
+/// `timeUnit` on an x that did not resolve temporal: names the resolved type
+/// AND which precedence rung decided it (the design's teaching requirement),
+/// then the two ways to make x temporal.
+fn timeunit_not_temporal_error(spec: &Spec, table: &Table, xf: &str, xt: FieldType) -> Error {
+    let rung = if spec.encoding.x.ty.is_some() {
+        "the explicit spec `type`"
+    } else if table.declared.contains_key(xf) {
+        "the declared column type"
+    } else {
+        "inference from the data"
+    };
+    Error::Spec(format!(
+        "`timeUnit` buckets a temporal x, but \"{xf}\" resolved to {} via {rung}; declare the \
+         column DATE/DATETIME/TIMESTAMP/TIME, or set encoding.x.type to \"temporal\"",
+        type_name(xt)
+    ))
+}
+
+/// The lowercase spelling of a `timeUnit`, for error prose.
+fn unit_name(u: TimeUnit) -> &'static str {
+    match u {
+        TimeUnit::Year => "year",
+        TimeUnit::Quarter => "quarter",
+        TimeUnit::Month => "month",
+        TimeUnit::Week => "week",
+        TimeUnit::Day => "day",
+        TimeUnit::Hour => "hour",
+        TimeUnit::Minute => "minute",
+    }
+}
+
+/// A densified `timeUnit` walk wider than the plot: a fine unit over a long
+/// span (a month of minutes is 43,200 buckets) would draw sub-column garbage —
+/// the vertical twin of the horizontal height ceiling. Counted before
+/// materializing; N == width stays legal (one-column bars). The coarsening
+/// suggestion names the next-coarser unit(s) from the actual one; year has
+/// none, so only the width fix remains.
+fn timeunit_overflow_error(n: usize, plot_w: usize, unit: TimeUnit) -> Error {
+    let coarser = match unit {
+        TimeUnit::Minute => Some("hour or day"),
+        TimeUnit::Hour => Some("day or week"),
+        TimeUnit::Day => Some("week or month"),
+        TimeUnit::Week => Some("month or quarter"),
+        TimeUnit::Month => Some("quarter or year"),
+        TimeUnit::Quarter => Some("year"),
+        TimeUnit::Year => None,
+    };
+    let fix = match coarser {
+        Some(c) => format!("use a coarser timeUnit ({c}) or a wider size"),
+        None => "use a wider size".to_string(),
+    };
+    Error::Data(format!(
+        "timeUnit \"{}\" spans {n} buckets but the plot is {plot_w} columns; {fix}",
+        unit_name(unit)
+    ))
+}
+
+/// `timeUnit` on an x that carries `aggregate: "count"`: count makes x the
+/// quantitative VALUE axis (a horizontal count-per-category bar), so there is
+/// no time axis to bucket — name both ways out.
+fn timeunit_xcount_error() -> Error {
+    Error::Spec(
+        "`timeUnit` buckets the time (category) axis, but `aggregate: \"count\"` makes \
+         encoding.x the count value axis; drop `timeUnit`, or move `count` to encoding.y \
+         and put the time field on encoding.x with `timeUnit`"
+            .into(),
+    )
+}
+
+/// `timeUnit` placed on y or color: it is x-only (it buckets the category axis).
+fn timeunit_channel_error(channel: &str) -> Error {
+    Error::Spec(format!(
+        "`timeUnit` is only supported on encoding.x (it buckets time on the category axis); \
+         remove it from encoding.{channel}"
+    ))
+}
+
+/// `timeUnit` on a line/point/area mark: those already plot continuous time, so
+/// bucketing is redundant — name the two fixes.
+fn timeunit_mark_error(mark: Mark) -> Error {
+    Error::Spec(format!(
+        "`timeUnit` buckets bars into discrete periods; mark {mark:?} already plots continuous \
+         time — drop `timeUnit`, or switch to `bar`"
+    ))
+}
+
+/// `timeUnit` combined with a grouping color: densify is scoped to plain bars
+/// (design §compile), so a grouped temporal bar is rejected.
+fn timeunit_grouped_error(color_field: &str) -> Error {
+    Error::Spec(format!(
+        "`timeUnit` bars do not support a grouping `color` (\"{color_field}\") yet; \
+         drop `color`, or drop `timeUnit`"
+    ))
+}
+
 /// One pass over the rows for ANY bar variant: categories (first-seen) down
 /// one dimension, series (first-seen; one unnamed series when `series_field`
 /// is None) down the other, each cell the raw values awaiting aggregation.
@@ -470,13 +634,17 @@ fn sort_cats(cats: Vec<String>, cells: Vec<Vec<Vec<f64>>>) -> (Vec<String>, Vec<
     pairs.into_iter().unzip()
 }
 
-/// Aggregate every cell (an empty cell stays `None` — a visible gap at a
-/// stable position), rejecting negative results, tracking the maximum for the
-/// value scale.
+/// Aggregate every cell, rejecting negative results, tracking the maximum for
+/// the value scale. An empty cell is normally `None` — a visible gap at a
+/// stable position. Only the `densified` temporal path (which INSERTS empty
+/// buckets for calendar gaps) treats an empty cell under `count` as a
+/// well-defined zero; every other aggregate — and every non-densified caller —
+/// keeps it `None` (mean of nothing is undefined).
 #[allow(clippy::type_complexity)]
 fn aggregate_cells(
     cells: &[Vec<Vec<f64>>],
     agg: Aggregate,
+    densified: bool,
 ) -> Result<(Vec<Vec<Option<f64>>>, f64), Error> {
     let mut vmax = f64::NEG_INFINITY;
     let mut out = Vec::with_capacity(cells.len());
@@ -484,7 +652,12 @@ fn aggregate_cells(
         let mut out_row = Vec::with_capacity(row.len());
         for values in row {
             if values.is_empty() {
-                out_row.push(None);
+                if densified && agg == Aggregate::Count {
+                    vmax = vmax.max(0.0);
+                    out_row.push(Some(0.0));
+                } else {
+                    out_row.push(None);
+                }
                 continue;
             }
             let v = aggregate(values, agg);

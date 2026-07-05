@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (data): timeUnit "year" spans 127 buckets but the plot is 72 columns; use a wider size

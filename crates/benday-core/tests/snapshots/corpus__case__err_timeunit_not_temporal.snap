@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `timeUnit` buckets a temporal x, but "c" resolved to nominal via inference from the data; declare the column DATE/DATETIME/TIMESTAMP/TIME, or set encoding.x.type to "temporal"

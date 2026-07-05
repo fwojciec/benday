@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"d","type":"DATE"},{"name":"revenue","type":"INT64"}],"rows":[["2026-01-05",100],["2026-01-20",150],["2026-02-10",200],["2026-03-03",50],["2026-03-28",90],["2026-04-15",300]]},"mark":"bar","encoding":{"x":{"field":"d","timeUnit":"month"},"y":{"field":"revenue"}}}

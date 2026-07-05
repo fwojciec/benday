@@ -1,0 +1,137 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 76,
+    "rows": 5
+  },
+  "plot": {
+    "x": 4,
+    "y": 0,
+    "w": 72,
+    "h": 3
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      1.0
+    ],
+    "step": 1.0,
+    "categories": [
+      "api",
+      "web"
+    ],
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "api",
+        "row": 0
+      },
+      {
+        "value": 1.0,
+        "frac": 1.0,
+        "label": "web",
+        "row": 2
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      3.0
+    ],
+    "tick_cols": [
+      0,
+      12,
+      24,
+      36,
+      47,
+      59,
+      71
+    ],
+    "labels": [
+      {
+        "text": "0.0",
+        "col": 3,
+        "row": 4
+      },
+      {
+        "text": "0.5",
+        "col": 15,
+        "row": 4
+      },
+      {
+        "text": "1.0",
+        "col": 27,
+        "row": 4
+      },
+      {
+        "text": "1.5",
+        "col": 39,
+        "row": 4
+      },
+      {
+        "text": "2.0",
+        "col": 50,
+        "row": 4
+      },
+      {
+        "text": "2.5",
+        "col": 62,
+        "row": 4
+      },
+      {
+        "text": "3.0",
+        "col": 73,
+        "row": 4
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 1.0,
+            "h": 0.3333333333333333,
+            "color": "#ffc151"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.6666666666666666,
+            "w": 0.6666666666666666,
+            "h": 0.3333333333333333,
+            "color": "#a5d16a"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "seen",
+    "y_field": "svc",
+    "aggregate": "count",
+    "series_points": [
+      3,
+      2
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

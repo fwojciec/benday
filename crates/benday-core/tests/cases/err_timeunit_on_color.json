@@ -1,0 +1,1 @@
+{"data":{"values":[{"d":"2026-01-01","v":5,"g":"a"},{"d":"2026-01-02","v":3,"g":"b"}]},"mark":"bar","encoding":{"x":{"field":"d"},"y":{"field":"v"},"color":{"field":"g","timeUnit":"month"}}}

@@ -5,6 +5,78 @@
 //! orchestration plus only the layout specific to its shape.
 
 use super::*;
+use crate::spec::TimeUnit;
+use crate::time;
+use serde_json::Value;
+
+/// Rewrite each row's temporal x into its canonical `timeUnit` bucket KEY
+/// (`time::bucket_key`), so the scanner interns identical buckets and
+/// `sort_cats`' lexical order is chronological. Returns the transformed rows
+/// plus the min/max parsed instants that bound densify. A non-null value that
+/// won't parse is the task-3 parse error; a null (or absent) x drops like the
+/// xy temporal path — the row loses its category and the scan counts it dropped.
+fn bucket_rows(rows: &[Row], xf: &str, unit: TimeUnit) -> Result<(Vec<Row>, f64, f64), Error> {
+    let mut out = Vec::with_capacity(rows.len());
+    let (mut min_ms, mut max_ms) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (ri, row) in rows.iter().enumerate() {
+        let mut r = row.clone();
+        match row.get(xf) {
+            Some(v) if !v.is_null() => {
+                let text = data::text(v);
+                match time::parse_temporal(&text) {
+                    Some(ms) => {
+                        min_ms = min_ms.min(ms);
+                        max_ms = max_ms.max(ms);
+                        r.insert(xf.to_string(), Value::String(time::bucket_key(ms, unit)));
+                    }
+                    None => return Err(temporal_parse_error(ri, &text, xf)),
+                }
+            }
+            _ => {
+                r.remove(xf);
+            }
+        }
+        out.push(r);
+    }
+    Ok((out, min_ms, max_ms))
+}
+
+/// Densify a scanned bucket set: walk every calendar bucket from the first
+/// DATA bucket to the last (in ms space, via `next_bucket`), pulling each
+/// scanned cell by key and inserting an EMPTY cell where a bucket is missing —
+/// a gap at its true chronological slot. Returns the dense keys, cells, and the
+/// bucket-start ms per slot (for the display labels). The keys are chronological
+/// (= lexical) by construction, so this replaces `sort_cats` on the timeUnit path.
+fn densify(
+    cats: Vec<String>,
+    cells: Vec<Vec<Vec<f64>>>,
+    min_ms: f64,
+    max_ms: f64,
+    unit: TimeUnit,
+) -> (Vec<String>, Vec<Vec<Vec<f64>>>, Vec<f64>) {
+    let mut by_key: HashMap<String, Vec<Vec<f64>>> = cats.into_iter().zip(cells).collect();
+    let (mut dense_cats, mut dense_cells, mut dense_ms) = (Vec::new(), Vec::new(), Vec::new());
+    let mut ms = time::bucket_start(min_ms, unit);
+    let last = time::bucket_start(max_ms, unit);
+    loop {
+        let key = time::bucket_key(ms, unit);
+        // A plain bar has one (unnamed) series; a missing bucket is one empty
+        // series cell — the shape `aggregate_cells` reads as a gap/zero.
+        let cell = by_key.remove(&key).unwrap_or_else(|| vec![Vec::new()]);
+        dense_cats.push(key);
+        dense_cells.push(cell);
+        dense_ms.push(ms);
+        if ms >= last {
+            break;
+        }
+        ms = time::next_bucket(ms, unit);
+    }
+    debug_assert!(
+        by_key.is_empty(),
+        "every data bucket lies within [bucket_start(min), bucket_start(max)]"
+    );
+    (dense_cats, dense_cells, dense_ms)
+}
 
 /// Whether a color channel splits the bars into grouped series (it names a
 /// THIRD field) rather than tinting the category axis (it names the category
@@ -36,30 +108,52 @@ pub(super) fn compile_bar(
 
     // Grouped bars (color names a third field) take a separate path; the code
     // below handles plain (gradient) and categorical-tint (color == x) bars.
+    // A `timeUnit` rides the PLAIN path only — densify is not defined per series
+    // this cycle, so a grouping color with a timeUnit is a teaching error.
+    let time_unit = spec.encoding.x.time_unit;
     if is_grouped(spec.encoding.color.as_ref(), xf) {
+        if let Some(unit_color) = spec.encoding.color.as_ref().filter(|_| time_unit.is_some()) {
+            return Err(timeunit_grouped_error(&unit_color.field));
+        }
         return compile_bar_grouped(spec, table, opts, plot_w, plot_h);
     }
 
-    let scan = scan_bars(rows, xf, yf, None, agg);
+    // A `timeUnit` transforms x into canonical bucket keys before the scan
+    // (bar_route guarantees x is temporal here); the scanner and interning then
+    // run UNCHANGED over the keyed rows, and min/max bound the densify walk.
+    let (scan, dense_range) = match time_unit {
+        Some(unit) => {
+            let (trows, min_ms, max_ms) = bucket_rows(rows, xf, unit)?;
+            (scan_bars(&trows, xf, yf, None, agg), Some((min_ms, max_ms)))
+        }
+        None => (scan_bars(rows, xf, yf, None, agg), None),
+    };
     let (mut cats, mut cells, dropped) = (scan.cats, scan.cells, scan.dropped);
     if cats.is_empty() {
         return Err(no_rows_error(yf, xf));
     }
-    // Bars always treat x as categorical; the resolved x type only decides
-    // whether categories sort chronologically (ordinal DATE/TIMESTAMP or an
-    // explicit ordinal spec type).
-    if resolved_type(&spec.encoding.x, table) == FieldType::Ordinal {
+    // On the timeUnit path, DENSIFY: insert an empty cell for every calendar
+    // bucket missing between the first and last data bucket (chronological =
+    // lexical by key construction, so this also supplies the sort). Otherwise an
+    // ordinal x (declared DATE/TIMESTAMP or an explicit ordinal type) sorts
+    // lexically; nominal keeps first-seen order.
+    let mut dense_ms: Vec<f64> = Vec::new();
+    if let (Some(unit), Some((min_ms, max_ms))) = (time_unit, dense_range) {
+        // Guard BEFORE materializing: a fine unit over a long span (a month of
+        // minutes is 43,200 buckets) would silently draw sub-column garbage.
+        // Counted arithmetically, so the pathological case costs nothing.
+        // N == plot_w stays legal: one-column bars.
+        let n = time::bucket_count(min_ms, max_ms, unit);
+        if n > plot_w {
+            return Err(timeunit_overflow_error(n, plot_w, unit));
+        }
+        (cats, cells, dense_ms) = densify(cats, cells, min_ms, max_ms, unit);
+    } else if resolved_type(&spec.encoding.x, table) == FieldType::Ordinal {
         (cats, cells) = sort_cats(cats, cells);
     }
-    // Raw per-category value counts, for --meta.
+    // Raw per-category value counts (post-densify, so a gap reads 0), for --meta.
     let series_points: Vec<usize> = cells.iter().map(|r| r[0].len()).collect();
-    let (agg_cells, vmax) = aggregate_cells(&cells, agg)?;
-    // Plain bars have exactly one (unnamed) series, and a category only exists
-    // because a row landed in it — every cell is Some.
-    let values: Vec<f64> = agg_cells
-        .iter()
-        .map(|r| r[0].expect("plain bars: a scanned category has values"))
-        .collect();
+    let (agg_cells, vmax) = aggregate_cells(&cells, agg, time_unit.is_some())?;
     let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
     // Grouped color was routed away above, so any remaining color channel names
     // the x field: a categorical tint (one color per bar, not per series).
@@ -82,25 +176,47 @@ pub(super) fn compile_bar(
 
     let mut bars: Vec<Bar> = Vec::new();
     let mut anchors: Vec<(usize, String)> = Vec::new();
-    for (i, v) in values.iter().enumerate() {
+    // Context labels (the task-2 idiom) roll over as the buckets are walked.
+    let mut prev_ms: Option<f64> = None;
+    for (i, cell) in agg_cells.iter().enumerate() {
         let center = (i as f64 + 0.5) * step;
-        let x0 = ((center - bar_w as f64 / 2.0).round().max(0.0) as usize).min(plot_w - bar_w);
-        let color = if categorical {
-            theme.series(i)
-        } else {
-            theme.grad(y.norm(*v))
+        // A plain NON-timeUnit bar never sees None: a category exists only
+        // because a row landed in it. The densified timeUnit path does — a None
+        // cell (a gap under a non-count aggregate) emits no bar glyph but keeps
+        // its category slot and tick, exactly as the grouped path treats a
+        // missing (category, series) cell.
+        if let Some(v) = cell[0] {
+            let x0 = ((center - bar_w as f64 / 2.0).round().max(0.0) as usize).min(plot_w - bar_w);
+            let color = if categorical {
+                theme.series(i)
+            } else {
+                theme.grad(y.norm(v))
+            };
+            bars.push(Bar {
+                x0: x0 as f64 / plot_w as f64,
+                y0: 1.0 - y.norm(v),
+                w: bar_w as f64 / plot_w as f64,
+                h: y.norm(v),
+                color,
+            });
+        }
+        // KEYS stay canonical (grouping/sort/meta); the axis LABEL is the
+        // bucket_display context+delta form on the timeUnit path — passed
+        // WHOLE, never slot-truncated: the tick idiom includes PLACEMENT, and
+        // `place_x_labels` centers each label on its slot, spans free neighbor
+        // columns, and drops on collision. Its greedy pass runs left-to-right,
+        // so the first (context) label survives preferentially and later
+        // deltas drop around it. Nominal bars keep per-slot truncation.
+        let label = match time_unit {
+            Some(unit) => {
+                let ms = dense_ms[i];
+                let label = time::bucket_display(ms, unit, prev_ms);
+                prev_ms = Some(ms);
+                label
+            }
+            None => truncate(&cats[i], label_max),
         };
-        bars.push(Bar {
-            x0: x0 as f64 / plot_w as f64,
-            y0: 1.0 - y.norm(*v),
-            w: bar_w as f64 / plot_w as f64,
-            h: y.norm(*v),
-            color,
-        });
-        anchors.push((
-            (center.round() as usize).min(plot_w - 1),
-            truncate(&cats[i], label_max),
-        ));
+        anchors.push(((center.round() as usize).min(plot_w - 1), label));
     }
 
     let labels = place_x_labels(&anchors, gutter, columns, top + plot_h + 1);
@@ -145,6 +261,7 @@ pub(super) fn compile_bar(
             y_field: yf.clone(),
             aggregate: Some(agg),
             x_type: None,
+            time_unit,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
@@ -207,7 +324,7 @@ fn compile_bar_grouped(
         )));
     }
 
-    let (cells, vmax) = aggregate_cells(&raw_cells, agg)?;
+    let (cells, vmax) = aggregate_cells(&raw_cells, agg, false)?;
     let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
 
     // --- Layout (title, gutter, columns) — identical to plain bars.
@@ -303,6 +420,7 @@ fn compile_bar_grouped(
             y_field: yf.clone(),
             aggregate: Some(agg),
             x_type: None,
+            time_unit: None,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
@@ -354,7 +472,7 @@ pub(super) fn compile_bar_h(
     }
     // Raw per-category value counts, for --meta.
     let series_points: Vec<usize> = cells.iter().map(|r| r[0].len()).collect();
-    let (agg_cells, vmax) = aggregate_cells(&cells, agg)?;
+    let (agg_cells, vmax) = aggregate_cells(&cells, agg, false)?;
     let values: Vec<f64> = agg_cells
         .iter()
         .map(|r| r[0].expect("plain bars: a scanned category has values"))
@@ -456,6 +574,7 @@ pub(super) fn compile_bar_h(
             y_field: yf.clone(),
             aggregate: Some(agg),
             x_type: None,
+            time_unit: None,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
@@ -515,7 +634,7 @@ fn compile_bar_h_grouped(
         return Err(palette_cap_error(n_series, theme.palette.len(), cf));
     }
 
-    let (cells, vmax) = aggregate_cells(&raw_cells, agg)?;
+    let (cells, vmax) = aggregate_cells(&raw_cells, agg, false)?;
     let xscale = Linear::nice_from(0.0, vmax, (plot_w / 10).clamp(2, 7), true);
 
     // Content-sized height: each category block is `n_series` bar rows plus one
@@ -618,6 +737,7 @@ fn compile_bar_h_grouped(
             y_field: yf.clone(),
             aggregate: Some(agg),
             x_type: None,
+            time_unit: None,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,

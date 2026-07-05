@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crate::ingest::DataSource;
 use crate::raster::Rgb;
-use crate::spec::{Aggregate, FieldType, Mark};
+use crate::spec::{Aggregate, FieldType, Mark, TimeUnit};
 
 #[derive(Serialize)]
 pub struct Scene {
@@ -164,6 +164,11 @@ pub struct Source {
     /// stays byte-identical (skipped when None).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub x_type: Option<FieldType>,
+    /// The `timeUnit` bucketing a temporal bar's x, `Some` ONLY on that path.
+    /// `meta()` reports it in the x block (with the canonical bucket keys as the
+    /// categories); skipped when None so every other snapshot stays identical.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_unit: Option<TimeUnit>,
     /// Points-per-series counts etc. needed to reproduce --meta exactly.
     pub series_points: Vec<usize>,
     /// Data provenance (from `Table::provenance`). Drives the conditional
@@ -218,13 +223,22 @@ impl Scene {
                         "size": size,
                     })
                 } else {
-                    json!({
-                    "mark": "bar",
-                    "x": {
+                    // A `timeUnit` bar reports its buckets as the (canonical-key)
+                    // categories plus a "timeUnit" tag and a "temporal" type — a
+                    // plain bar keeps the byte-identical nominal shape.
+                    let mut x = json!({
                         "field": self.source.x_field,
                         "type": "nominal",
                         "categories": self.x_axis.categories,
-                    },
+                    });
+                    if let Some(tu) = self.source.time_unit {
+                        let x = x.as_object_mut().expect("x meta is an object");
+                        x.insert("type".to_string(), json!("temporal"));
+                        x.insert("timeUnit".to_string(), json!(tu));
+                    }
+                    json!({
+                    "mark": "bar",
+                    "x": x,
                     "y": {
                         "field": self.source.y_field,
                         "aggregate": self.source.aggregate,
@@ -423,6 +437,7 @@ mod tests {
                 y_field: "val".to_string(),
                 aggregate: None,
                 x_type: None,
+                time_unit: None,
                 series_points: vec![2],
                 data_source: DataSource::InlineValues,
                 truncated: None,

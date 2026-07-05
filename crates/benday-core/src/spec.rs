@@ -84,6 +84,13 @@ pub struct Channel {
     pub ty: Option<FieldType>,
     #[serde(default)]
     pub aggregate: Option<Aggregate>,
+    /// Calendar-truncation bucketing for a temporal x on a `bar` mark: each
+    /// value is floored to the unit's boundary, keeping the calendar prefix
+    /// (`"month"` maps `2026-06-14` to `2026-06`, NOT Vega-Lite's cyclic "all
+    /// Junes"). Bar-only, x-only this cycle — every other placement is a
+    /// teaching error (see `compile`). Inferred nothing when omitted.
+    #[serde(default, rename = "timeUnit")]
+    pub time_unit: Option<TimeUnit>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -96,6 +103,22 @@ pub enum FieldType {
     /// docs/plans/2026-07-05-temporal-family-design.md). An explicit
     /// `"ordinal"` restores evenly-spaced categorical behavior.
     Temporal,
+}
+
+/// A calendar-truncation bucket unit for `timeUnit` (temporal bars). Ordered
+/// coarse-relevant but semantics are per-variant: truncate a timestamp to this
+/// unit's boundary, KEEPING the year (design §spec semantics). Week anchors to
+/// Monday.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TimeUnit {
+    Year,
+    Quarter,
+    Month,
+    Week,
+    Day,
+    Hour,
+    Minute,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

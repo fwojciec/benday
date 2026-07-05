@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"seen","type":"DATE"},{"name":"svc","type":"STRING"}],"rows":[["2026-01-01","api"],["2026-01-02","api"],["2026-01-03","web"]]},"mark":"bar","encoding":{"x":{"field":"seen","aggregate":"count","timeUnit":"day"},"y":{"field":"svc"}}}

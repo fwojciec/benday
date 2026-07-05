@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `timeUnit` buckets bars into discrete periods; mark Line already plots continuous time — drop `timeUnit`, or switch to `bar`

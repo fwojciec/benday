@@ -1,0 +1,1 @@
+{"data":{"values":[{"t":"1900-01-01","v":1},{"t":"2026-01-01","v":2}]},"mark":"bar","encoding":{"x":{"field":"t","timeUnit":"year"},"y":{"field":"v"}}}

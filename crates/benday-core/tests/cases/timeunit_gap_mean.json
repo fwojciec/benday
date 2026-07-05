@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"d","type":"DATE"},{"name":"latency","type":"FLOAT64"}],"rows":[["2026-06-01",10],["2026-06-01",20],["2026-06-02",30],["2026-06-04",40],["2026-06-04",50]]},"mark":"bar","encoding":{"x":{"field":"d","timeUnit":"day"},"y":{"field":"latency","aggregate":"mean"}}}

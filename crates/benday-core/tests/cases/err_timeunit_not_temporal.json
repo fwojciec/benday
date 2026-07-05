@@ -1,0 +1,1 @@
+{"data":{"values":[{"c":"apples","n":3},{"c":"pears","n":7}]},"mark":"bar","encoding":{"x":{"field":"c","timeUnit":"month"},"y":{"field":"n"}}}

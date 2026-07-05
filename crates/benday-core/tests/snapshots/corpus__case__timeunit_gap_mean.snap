@@ -1,0 +1,134 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 75,
+    "rows": 15
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      60.0
+    ],
+    "step": 20.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 12
+      },
+      {
+        "value": 20.0,
+        "frac": 0.3333333333333333,
+        "label": "20",
+        "row": 8
+      },
+      {
+        "value": 40.0,
+        "frac": 0.6666666666666666,
+        "label": "40",
+        "row": 4
+      },
+      {
+        "value": 60.0,
+        "frac": 1.0,
+        "label": "60",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-03",
+      "2026-06-04"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "Jun 1 '26",
+        "col": 8,
+        "row": 14
+      },
+      {
+        "text": "Jun 2",
+        "col": 28,
+        "row": 14
+      },
+      {
+        "text": "Jun 3",
+        "col": 46,
+        "row": 14
+      },
+      {
+        "text": "Jun 4",
+        "col": 64,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.041666666666666664,
+            "y0": 0.75,
+            "w": 0.16666666666666666,
+            "h": 0.25,
+            "color": "#00c3c4"
+          },
+          {
+            "x0": 0.2916666666666667,
+            "y0": 0.5,
+            "w": 0.16666666666666666,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.7916666666666666,
+            "y0": 0.25,
+            "w": 0.16666666666666666,
+            "h": 0.75,
+            "color": "#c1cf59"
+          }
+        ],
+        "direction": "vertical"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "d",
+    "y_field": "latency",
+    "aggregate": "mean",
+    "time_unit": "day",
+    "series_points": [
+      2,
+      1,
+      0,
+      2
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

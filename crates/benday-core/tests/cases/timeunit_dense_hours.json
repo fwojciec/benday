@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"t","type":"TIMESTAMP"}],"rows":[["2026-06-14 00:10:00"],["2026-06-14 08:15:00"],["2026-06-14 08:45:00"],["2026-06-14 16:20:00"],["2026-06-14 23:40:00"]]},"mark":"bar","encoding":{"x":{"field":"t","timeUnit":"hour"},"y":{"field":"t","aggregate":"count"}}}

@@ -1,0 +1,1 @@
+{"data":{"values":[{"ts":"2026-06-14T09:05:00"},{"ts":"2026-06-14T09:30:00"},{"ts":"2026-06-14T11:20:00"}]},"mark":"bar","encoding":{"x":{"field":"ts","timeUnit":"hour"},"y":{"field":"ts","aggregate":"count"}}}

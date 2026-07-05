@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `timeUnit` bars do not support a grouping `color` ("region") yet; drop `color`, or drop `timeUnit`

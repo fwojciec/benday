@@ -335,6 +335,8 @@ pub(super) fn compile_xy(
             // Set ONLY on the temporal path so `meta()` reports an ISO domain;
             // None everywhere else keeps existing snapshots byte-identical.
             x_type: temporal.as_ref().map(|_| FieldType::Temporal),
+            // timeUnit is bar-only (rejected on xy in `validate`), so never set here.
+            time_unit: None,
             series_points: series.iter().map(|s| s.points.len()).collect(),
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,

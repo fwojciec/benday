@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `timeUnit` buckets the time (category) axis, but `aggregate: "count"` makes encoding.x the count value axis; drop `timeUnit`, or move `count` to encoding.y and put the time field on encoding.x with `timeUnit`

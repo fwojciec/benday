@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"d","type":"DATE"},{"name":"v","type":"INT64"}],"rows":[["2026-01-01",5],["2026-02-01",8]]},"mark":"line","encoding":{"x":{"field":"d","timeUnit":"month"},"y":{"field":"v"}}}

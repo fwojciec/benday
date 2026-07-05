@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `timeUnit` is only supported on encoding.x (it buckets time on the category axis); remove it from encoding.y

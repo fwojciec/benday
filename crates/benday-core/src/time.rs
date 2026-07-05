@@ -6,6 +6,8 @@
 //! `days_from_civil` / `civil_from_days` algorithms. No timezone database,
 //! no locale, no clock — this module never calls `now()`.
 
+use crate::spec::TimeUnit;
+
 const MS_PER_DAY: i64 = 86_400_000;
 const MS_PER_HOUR: i64 = 3_600_000;
 const MS_PER_MIN: i64 = 60_000;
@@ -545,6 +547,115 @@ fn next_year_step(n: i64) -> i64 {
     }
 }
 
+// --- timeUnit bucketing (temporal bars). Truncation reuses the ladder's own
+// `Rung` floor/next machinery so calendar math lives in exactly one place; the
+// display labels reuse `tick_label` so a bucket axis reads identically to a
+// temporal tick axis.
+
+/// The ladder `Rung` whose boundaries a `timeUnit` truncates to. Week rides
+/// the Monday-anchored `Rung::Week`; day/hour/minute the fixed-width rungs;
+/// month/quarter/year the civil rungs — every floor already exists.
+fn rung_for(u: TimeUnit) -> Rung {
+    match u {
+        TimeUnit::Year => Rung::Years(1),
+        TimeUnit::Quarter => Rung::Months(3, Unit::Quarter),
+        TimeUnit::Month => Rung::Months(1, Unit::Month),
+        TimeUnit::Week => Rung::Week,
+        TimeUnit::Day => Rung::Fixed(MS_PER_DAY, Unit::Day),
+        TimeUnit::Hour => Rung::Fixed(MS_PER_HOUR, Unit::Hour),
+        TimeUnit::Minute => Rung::Fixed(MS_PER_MIN, Unit::Min),
+    }
+}
+
+/// The ladder `Unit` a `timeUnit` labels as, so `bucket_display` renders in the
+/// exact context+delta idiom of the temporal tick axis. Week borrows the day
+/// idiom (`Jun 8`), its date being the Monday.
+fn label_unit(u: TimeUnit) -> Unit {
+    match u {
+        TimeUnit::Year => Unit::Year,
+        TimeUnit::Quarter => Unit::Quarter,
+        TimeUnit::Month => Unit::Month,
+        TimeUnit::Week | TimeUnit::Day => Unit::Day,
+        TimeUnit::Hour => Unit::Hour,
+        TimeUnit::Minute => Unit::Min,
+    }
+}
+
+/// The timestamp at the start of `ms`'s bucket (idempotent: flooring an
+/// already-floored boundary is a no-op), for densify's chronological walk.
+pub(crate) fn bucket_start(ms: f64, u: TimeUnit) -> f64 {
+    rung_for(u).floor(ms as i64) as f64
+}
+
+/// The start of the bucket after `ms`'s — steps the civil form for
+/// month/quarter/year, adds a fixed width otherwise. `ms` should be a bucket
+/// start (what `bucket_start` returns), as the densify walk supplies.
+pub(crate) fn next_bucket(ms: f64, u: TimeUnit) -> f64 {
+    rung_for(u).next(ms as i64) as f64
+}
+
+/// The canonical bucket KEY: a zero-padded ISO prefix, so text interning groups
+/// identical buckets and lexical order IS chronological. year `2026` · quarter
+/// `2026-Q2` · month `2026-06` · week `2026-06-08` (the Monday) · day
+/// `2026-06-14` · hour `2026-06-14 09h` · minute `2026-06-14 09:12`.
+pub(crate) fn bucket_key(ms: f64, u: TimeUnit) -> String {
+    let start = bucket_start(ms, u) as i64;
+    let (y, m, d) = civil_from_days(start.div_euclid(MS_PER_DAY));
+    let rem = start.rem_euclid(MS_PER_DAY);
+    let (hh, mi) = (rem / MS_PER_HOUR, rem / MS_PER_MIN % 60);
+    match u {
+        TimeUnit::Year => format!("{y:04}"),
+        TimeUnit::Quarter => format!("{y:04}-Q{}", (m - 1) / 3 + 1),
+        TimeUnit::Month => format!("{y:04}-{m:02}"),
+        TimeUnit::Week | TimeUnit::Day => format!("{y:04}-{m:02}-{d:02}"),
+        TimeUnit::Hour => format!("{y:04}-{m:02}-{d:02} {hh:02}h"),
+        TimeUnit::Minute => format!("{y:04}-{m:02}-{d:02} {hh:02}:{mi:02}"),
+    }
+}
+
+/// The DISPLAY label for a bucket: the task-2 context+delta idiom, reusing
+/// `tick_label` — full context when `prev` is None (the first bucket) and at
+/// each rollover (a new civil day for sub-day units, a new year for
+/// day-and-coarser), the bare delta form otherwise. `prev` is any instant in
+/// the previous bucket; both instants are floored to their bucket starts so an
+/// hour reads "09:00" and the rollover compares bucket against bucket —
+/// `tick_label` owns the rollover rule, not a duplicate here.
+pub(crate) fn bucket_display(ms: f64, u: TimeUnit, prev: Option<f64>) -> String {
+    let start = bucket_start(ms, u) as i64;
+    let prev = prev.map(|p| bucket_start(p, u) as i64);
+    tick_label(label_unit(u), start, prev)
+}
+
+/// How many buckets a densified walk from `min_ms` to `max_ms` produces —
+/// computed arithmetically on the civil form, NO walk, so the compile-side
+/// overflow guard is O(1) even when the answer is "a month of minutes"
+/// (43,200). Must agree with `bucket_start`/`next_bucket` exactly; the unit
+/// test pins it against the real walk.
+pub(crate) fn bucket_count(min_ms: f64, max_ms: f64, u: TimeUnit) -> usize {
+    let first = bucket_start(min_ms, u) as i64;
+    let last = bucket_start(max_ms, u) as i64;
+    let steps = match u {
+        // Civil units count on the year/month index (the same index
+        // `Rung::Months`/`Rung::Years` step on).
+        TimeUnit::Year | TimeUnit::Quarter | TimeUnit::Month => {
+            let (y0, m0, _) = civil_from_days(first.div_euclid(MS_PER_DAY));
+            let (y1, m1, _) = civil_from_days(last.div_euclid(MS_PER_DAY));
+            let months = (y1 * 12 + m1 as i64) - (y0 * 12 + m0 as i64);
+            match u {
+                TimeUnit::Year => months / 12,
+                TimeUnit::Quarter => months / 3,
+                _ => months,
+            }
+        }
+        // Fixed-width units divide the ms span between the two starts.
+        TimeUnit::Week => (last - first) / (7 * MS_PER_DAY),
+        TimeUnit::Day => (last - first) / MS_PER_DAY,
+        TimeUnit::Hour => (last - first) / MS_PER_HOUR,
+        TimeUnit::Minute => (last - first) / MS_PER_MIN,
+    };
+    steps as usize + 1
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1011,5 +1122,167 @@ mod tests {
         ] {
             assert_eq!(parse_temporal(s), None, "expected {s:?} to be rejected");
         }
+    }
+
+    fn ms(s: &str) -> f64 {
+        parse_temporal(s).expect("test timestamp parses")
+    }
+
+    #[test]
+    fn bucket_key_zero_padded_iso_prefix_per_unit() {
+        // The canonical keys the design pins: lexical order IS chronological,
+        // and truncation KEEPS the year (not Vega-Lite's cyclic buckets). One
+        // instant, every unit — the mid-June-morning example from the design.
+        let t = ms("2026-06-14T09:12:45");
+        assert_eq!(bucket_key(t, TimeUnit::Year), "2026");
+        assert_eq!(bucket_key(t, TimeUnit::Quarter), "2026-Q2");
+        assert_eq!(bucket_key(t, TimeUnit::Month), "2026-06");
+        // 2026-06-14 is a Sunday; its week bucket is the Monday 2026-06-08.
+        assert_eq!(bucket_key(t, TimeUnit::Week), "2026-06-08");
+        assert_eq!(bucket_key(t, TimeUnit::Day), "2026-06-14");
+        assert_eq!(bucket_key(t, TimeUnit::Hour), "2026-06-14 09h");
+        assert_eq!(bucket_key(t, TimeUnit::Minute), "2026-06-14 09:12");
+    }
+
+    #[test]
+    fn bucket_key_quarter_boundaries() {
+        // Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec — the cube workload's
+        // native period, keyed so all four sort within their year.
+        for (mnth, q) in [
+            ("01", 1),
+            ("03", 1),
+            ("04", 2),
+            ("06", 2),
+            ("07", 3),
+            ("09", 3),
+            ("10", 4),
+            ("12", 4),
+        ] {
+            let key = bucket_key(ms(&format!("2026-{mnth}-15")), TimeUnit::Quarter);
+            assert_eq!(key, format!("2026-Q{q}"), "month {mnth}");
+        }
+    }
+
+    #[test]
+    fn bucket_start_idempotent_and_key_stable() {
+        // Flooring a bucket start is a no-op, and any instant in a bucket keys
+        // the same — the two properties densify's ms-space walk leans on.
+        for u in [
+            TimeUnit::Year,
+            TimeUnit::Quarter,
+            TimeUnit::Month,
+            TimeUnit::Week,
+            TimeUnit::Day,
+            TimeUnit::Hour,
+            TimeUnit::Minute,
+        ] {
+            let t = ms("2026-06-14T09:12:45");
+            let start = bucket_start(t, u);
+            assert_eq!(bucket_start(start, u), start, "idempotent floor");
+            assert_eq!(
+                bucket_key(start, u),
+                bucket_key(t, u),
+                "key stable in bucket"
+            );
+        }
+    }
+
+    #[test]
+    fn next_bucket_steps_the_calendar() {
+        // Fixed widths add; civil units step the calendar, crossing year ends.
+        let step = |s: &str, u| bucket_key(next_bucket(bucket_start(ms(s), u), u), u);
+        assert_eq!(
+            step("2026-06-14T09:12:00", TimeUnit::Minute),
+            "2026-06-14 09:13"
+        );
+        assert_eq!(
+            step("2026-06-14T09:12:00", TimeUnit::Hour),
+            "2026-06-14 10h"
+        );
+        assert_eq!(step("2026-06-14", TimeUnit::Day), "2026-06-15");
+        // Monday 2026-06-08 -> next Monday 2026-06-15.
+        assert_eq!(step("2026-06-10", TimeUnit::Week), "2026-06-15");
+        // December rolls the year for month/quarter/year steps.
+        assert_eq!(step("2026-12-20", TimeUnit::Month), "2027-01");
+        assert_eq!(step("2026-11-20", TimeUnit::Quarter), "2027-Q1");
+        assert_eq!(step("2026-03-20", TimeUnit::Year), "2027");
+    }
+
+    #[test]
+    fn bucket_display_context_and_delta() {
+        // `prev: None` (the first bucket) and each rollover carry the full
+        // calendar context; a prev in the same window yields the bare delta —
+        // the rollover decision is tick_label's own, not a duplicate.
+        let t = ms("2026-06-14T09:12:00");
+        let prev_month = ms("2026-05-01");
+        let prev_hour = ms("2026-06-14T08:30:00");
+        let prev_day = ms("2026-06-13");
+        assert_eq!(bucket_display(t, TimeUnit::Month, None), "Jun '26");
+        assert_eq!(bucket_display(t, TimeUnit::Month, Some(prev_month)), "Jun");
+        assert_eq!(bucket_display(t, TimeUnit::Quarter, None), "Q2 '26");
+        assert_eq!(bucket_display(t, TimeUnit::Quarter, Some(prev_month)), "Q2");
+        assert_eq!(bucket_display(t, TimeUnit::Day, None), "Jun 14 '26");
+        assert_eq!(bucket_display(t, TimeUnit::Day, Some(prev_day)), "Jun 14");
+        assert_eq!(bucket_display(t, TimeUnit::Hour, None), "Jun 14 09:00");
+        assert_eq!(bucket_display(t, TimeUnit::Hour, Some(prev_hour)), "09:00");
+        assert_eq!(bucket_display(t, TimeUnit::Year, None), "2026");
+        assert_eq!(bucket_display(t, TimeUnit::Year, Some(prev_month)), "2026");
+        // Rollovers: a new civil day restores hour context, a new year
+        // restores month context; years never re-contextualize.
+        assert_eq!(
+            bucket_display(
+                ms("2026-06-15T00:00:00"),
+                TimeUnit::Hour,
+                Some(ms("2026-06-14T23:00:00"))
+            ),
+            "Jun 15 00:00"
+        );
+        assert_eq!(
+            bucket_display(ms("2027-01-01"), TimeUnit::Month, Some(ms("2026-12-01"))),
+            "Jan '27"
+        );
+        assert_eq!(
+            bucket_display(ms("2027-01-01"), TimeUnit::Year, Some(ms("2026-01-01"))),
+            "2027"
+        );
+    }
+
+    #[test]
+    fn bucket_count_matches_the_walk() {
+        // The arithmetic count must agree with the walk densify performs.
+        for (a, b, u) in [
+            ("2026-06-14T09:05:00", "2026-06-14T14:45:00", TimeUnit::Hour),
+            ("2026-06-14T09:05:00", "2026-06-14T09:05:00", TimeUnit::Hour),
+            ("2026-01-05", "2026-04-15", TimeUnit::Month),
+            ("2025-11-20", "2026-03-01", TimeUnit::Quarter),
+            ("2024-02-29", "2026-03-01", TimeUnit::Year),
+            ("2026-06-03", "2026-06-27", TimeUnit::Week),
+            ("2026-06-01", "2026-06-30", TimeUnit::Day),
+            (
+                "2026-06-14T09:00:00",
+                "2026-06-14T09:59:30",
+                TimeUnit::Minute,
+            ),
+        ] {
+            let (min, max) = (ms(a), ms(b));
+            let mut n = 1usize;
+            let mut t = bucket_start(min, u);
+            let last = bucket_start(max, u);
+            while t < last {
+                t = next_bucket(t, u);
+                n += 1;
+            }
+            assert_eq!(bucket_count(min, max, u), n, "{a}..{b} {u:?}");
+        }
+        // The pathological span the overflow guard exists for: a month of
+        // minutes — counted in O(1), never walked.
+        assert_eq!(
+            bucket_count(
+                ms("2026-06-01 00:00:00"),
+                ms("2026-06-30 23:59:00"),
+                TimeUnit::Minute
+            ),
+            43_200
+        );
     }
 }

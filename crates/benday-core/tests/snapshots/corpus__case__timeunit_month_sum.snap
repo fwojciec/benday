@@ -1,0 +1,159 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 76,
+    "rows": 15
+  },
+  "plot": {
+    "x": 4,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      300.0
+    ],
+    "step": 50.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 12
+      },
+      {
+        "value": 50.0,
+        "frac": 0.16666666666666666,
+        "label": "50",
+        "row": 10
+      },
+      {
+        "value": 100.0,
+        "frac": 0.3333333333333333,
+        "label": "100",
+        "row": 8
+      },
+      {
+        "value": 150.0,
+        "frac": 0.5,
+        "label": "150",
+        "row": 6
+      },
+      {
+        "value": 200.0,
+        "frac": 0.6666666666666666,
+        "label": "200",
+        "row": 4
+      },
+      {
+        "value": 250.0,
+        "frac": 0.8333333333333334,
+        "label": "250",
+        "row": 2
+      },
+      {
+        "value": 300.0,
+        "frac": 1.0,
+        "label": "300",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "Jan '26",
+        "col": 10,
+        "row": 14
+      },
+      {
+        "text": "Feb",
+        "col": 30,
+        "row": 14
+      },
+      {
+        "text": "Mar",
+        "col": 48,
+        "row": 14
+      },
+      {
+        "text": "Apr",
+        "col": 66,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.041666666666666664,
+            "y0": 0.16666666666666663,
+            "w": 0.16666666666666666,
+            "h": 0.8333333333333334,
+            "color": "#dccb4d"
+          },
+          {
+            "x0": 0.2916666666666667,
+            "y0": 0.33333333333333337,
+            "w": 0.16666666666666666,
+            "h": 0.6666666666666666,
+            "color": "#a5d16a"
+          },
+          {
+            "x0": 0.5416666666666666,
+            "y0": 0.5333333333333333,
+            "w": 0.16666666666666666,
+            "h": 0.4666666666666667,
+            "color": "#5ad098"
+          },
+          {
+            "x0": 0.7916666666666666,
+            "y0": 0.0,
+            "w": 0.16666666666666666,
+            "h": 1.0,
+            "color": "#ffc151"
+          }
+        ],
+        "direction": "vertical"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "d",
+    "y_field": "revenue",
+    "aggregate": "sum",
+    "time_unit": "month",
+    "series_points": [
+      2,
+      1,
+      2,
+      1
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}
