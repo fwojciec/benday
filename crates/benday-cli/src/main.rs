@@ -27,8 +27,9 @@ Spec (a strict Vega-Lite subset):
 Bar rules (the encoding decides — no extra flags):
   - Orientation: categorical x + quantitative y = vertical bars; quantitative x
     + categorical y = HORIZONTAL bars (best for rankings: one row per bar,
-    height auto-sized, long names get a label column). Rows chart in the order
-    they arrive, so ORDER BY in the producing query IS the sort.
+    height auto-sized, names get a label column — truncated past 24 cells with
+    '…'; --meta carries the full names). Rows chart in the order they arrive,
+    so ORDER BY in the producing query IS the sort.
   - Grouping: "color" naming a THIRD field splits each category into a grouped
     cluster, one bar per value of that field, with a legend. "color" naming the
     category field itself just tints the bars.
