@@ -262,3 +262,112 @@ fn bar_family_gallery() {
         },
     );
 }
+
+/// The temporal family: continuous-time line marks and timeUnit-bucketed bars.
+/// Every case pins an explicit size chosen so the calendar-tick ladder selects
+/// the NAMED step at that width — or, for the narrow fallback case, exhausts
+/// the ladder to the two-endpoint fallback. The label idiom is the thing under
+/// test, so the width is load-bearing, not incidental. Sizes verified by a real-terminal
+/// render before pinning: a narrower width would coarsen the rung and change the
+/// labels. Line marks place values at true positions in time; timeUnit bars
+/// truncate to canonical ISO buckets, then densify so empty calendar cells keep
+/// their tick and (for `count`) a zero bar.
+#[test]
+fn temporal_family_gallery() {
+    // Daily line over ~3.6 weeks: the week rung is selected, so ticks land on
+    // Mondays (Jun 1, 8, 15, 22, 29) with the year context only at the first
+    // tick. The domain expands outward to the enclosing week boundaries.
+    let daily = parse(
+        r#"{"data":{"columns":[{"name":"day","type":"DATE"},{"name":"sessions","type":"INT64"}],
+            "rows":[
+              ["2026-06-01",120],["2026-06-02",138],["2026-06-03",145],["2026-06-04",132],
+              ["2026-06-05",150],["2026-06-06",168],["2026-06-07",142],["2026-06-08",159],
+              ["2026-06-09",171],["2026-06-10",165],["2026-06-11",180],["2026-06-12",176],
+              ["2026-06-13",190],["2026-06-14",185],["2026-06-15",172],["2026-06-16",168],
+              ["2026-06-17",159],["2026-06-18",182],["2026-06-19",195],["2026-06-20",201],
+              ["2026-06-21",188],["2026-06-22",176],["2026-06-23",192],["2026-06-24",205],
+              ["2026-06-25",198],["2026-06-26",210]]},
+          "mark":"line","encoding":{"x":{"field":"day"},"y":{"field":"sessions"}}}"#,
+    );
+    snap("temporal_line_daily_week_ticks", &daily, &opts(72, 8));
+
+    // The same dataset width-starved: a June-only domain gives month, quarter,
+    // and year rungs only two ticks each (under MIN_TICKS), so once the week
+    // rung collides there is no rung left — the first-and-last fallback fires.
+    // Structurally distinct from every rung case: exactly two FULL-context
+    // labels at the TRUE data extremes (ticks at the frame edges), domain
+    // tight to min/max with no boundary expansion. 16 is the narrowest width
+    // where both labels place — the first clamps left over the gutter, the
+    // second clamps right to the row end, one column apart; at 15 the greedy
+    // placement drops the second label.
+    snap("temporal_line_fallback_narrow", &daily, &opts(16, 8));
+
+    // 16 monthly points, Jan '25 → Apr '26: the quarter rung is selected, and the
+    // year context reappears at the Q1 '26 rollover — Q1 '25 · Q2 · Q3 · Q4 ·
+    // Q1 '26 · Q2. This is the analytics-cube period at its native step.
+    let quarterly = parse(
+        r#"{"data":{"columns":[{"name":"month","type":"DATE"},{"name":"mrr","type":"INT64"}],
+            "rows":[
+              ["2025-01-01",240],["2025-02-01",255],["2025-03-01",270],["2025-04-01",262],
+              ["2025-05-01",288],["2025-06-01",295],["2025-07-01",310],["2025-08-01",305],
+              ["2025-09-01",330],["2025-10-01",348],["2025-11-01",352],["2025-12-01",360],
+              ["2026-01-01",372],["2026-02-01",368],["2026-03-01",390],["2026-04-01",405]]},
+          "mark":"line","encoding":{"x":{"field":"month"},"y":{"field":"mrr"}}}"#,
+    );
+    snap("temporal_line_quarterly_rollover", &quarterly, &opts(72, 8));
+
+    // Gappy readings: three clusters with true calendar gaps between them. On an
+    // ordinal axis the gaps would vanish; the temporal scale renders them as
+    // proportional blank space — positional truth is the point of this case.
+    let gappy = parse(
+        r#"{"data":{"columns":[{"name":"t","type":"DATE"},{"name":"latency_ms","type":"INT64"}],
+            "rows":[
+              ["2026-03-02",410],["2026-03-03",455],["2026-03-05",430],
+              ["2026-03-18",680],["2026-03-19",720],["2026-03-20",695],
+              ["2026-04-06",540],["2026-04-07",560]]},
+          "mark":"line","encoding":{"x":{"field":"t"},"y":{"field":"latency_ms"}}}"#,
+    );
+    snap("temporal_line_gappy", &gappy, &opts(72, 8));
+
+    // Raw log timestamps, INLINE and UNDECLARED (the promoted-string path): every
+    // value parses as ISO, so the column is inferred temporal end to end. timeUnit
+    // hour + count with no separate value field is the events-per-hour histogram.
+    // Hours 11–13 have no events; densify inserts them as zero bars — a quiet-hours
+    // run that keeps its ticks. This is the raw-gcloud-logs story in one spec.
+    let hourly = parse(
+        r#"{"data":{"values":[
+              {"ts":"2026-06-14T08:03:11"},{"ts":"2026-06-14T08:19:44"},
+              {"ts":"2026-06-14T08:37:02"},{"ts":"2026-06-14T08:51:59"},
+              {"ts":"2026-06-14T09:02:00"},{"ts":"2026-06-14T09:08:31"},
+              {"ts":"2026-06-14T09:22:10"},{"ts":"2026-06-14T09:33:45"},
+              {"ts":"2026-06-14T09:47:20"},{"ts":"2026-06-14T09:58:04"},
+              {"ts":"2026-06-14T10:05:12"},{"ts":"2026-06-14T10:28:39"},
+              {"ts":"2026-06-14T10:55:01"},{"ts":"2026-06-14T14:11:07"},
+              {"ts":"2026-06-14T14:19:52"},{"ts":"2026-06-14T14:33:20"},
+              {"ts":"2026-06-14T14:48:09"},{"ts":"2026-06-14T14:59:41"},
+              {"ts":"2026-06-14T15:14:33"},{"ts":"2026-06-14T15:42:18"}]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"ts","timeUnit":"hour"},"y":{"field":"ts","aggregate":"count"}}}"#,
+    );
+    snap("temporal_bar_hourly_count_quiet", &hourly, &opts(72, 8));
+
+    // Daily revenue rows bucketed and summed by month, Sep '25 → Apr '26: the
+    // month rung labels every bucket, year context at the first tick and at the
+    // Jan '26 rollover. SQL would date_trunc here; when SQL is absent, timeUnit
+    // does the bucketing and benday still owns the axis geometry.
+    let month = parse(
+        r#"{"data":{"columns":[{"name":"d","type":"DATE"},{"name":"revenue","type":"INT64"}],
+            "rows":[
+              ["2025-09-03",120],["2025-09-08",90],["2025-09-13",140],
+              ["2025-10-03",160],["2025-10-08",110],
+              ["2025-11-03",130],["2025-11-08",150],["2025-11-13",80],
+              ["2025-12-03",200],["2025-12-08",190],
+              ["2026-01-03",90],["2026-01-08",70],["2026-01-13",60],
+              ["2026-02-03",210],["2026-02-08",180],
+              ["2026-03-03",240],["2026-03-08",60],["2026-03-13",90],
+              ["2026-04-03",300],["2026-04-08",120]]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"d","timeUnit":"month"},"y":{"field":"revenue","aggregate":"sum"}}}"#,
+    );
+    snap("temporal_bar_month_sum", &month, &opts(72, 8));
+}

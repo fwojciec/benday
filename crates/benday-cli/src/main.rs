@@ -12,13 +12,16 @@ const EXAMPLES: &str = r#"Examples:
   benday --spec-file chart.json --marker octant --theme lichtenstein
   echo '{"data":{"values":[{"site":"north","n":128},{"site":"south","n":94}]},"mark":"bar","encoding":{"x":{"field":"n"},"y":{"field":"site"}}}' | benday   # horizontal bars
   query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"quarter"},"y":{"field":"n"},"color":{"field":"direction"}}}'   # grouped bars
+  query ... | benday --spec '{"mark":"line","encoding":{"x":{"field":"month"},"y":{"field":"mrr"}}}'   # DATE column -> calendar x; a year-plus of monthly rows picks quarter ticks
+  echo '[{"ts":"2026-06-14T08:03:00"},{"ts":"2026-06-14T10:12:00"}]' | benday --spec '{"mark":"bar","encoding":{"x":{"field":"ts","timeUnit":"hour"},"y":{"field":"ts","aggregate":"count"}}}'   # raw log times -> hourly counts
 
 Spec (a strict Vega-Lite subset):
   { "data"?: { "values": [ {..row..}, ... ] },        // optional; omit to pipe rows on stdin
     //         or columnar: { "columns": [ {"name":str,"type"?:str} ], "rows": [ [..], ... ] }
     "mark": "bar" | "line" | "point" | "area",
     "encoding": {
-      "x": { "field": str, "type"?: "quantitative"|"nominal"|"ordinal" },
+      "x": { "field": str, "type"?: "quantitative"|"temporal"|"nominal"|"ordinal",
+             "timeUnit"?: "year"|"quarter"|"month"|"week"|"day"|"hour"|"minute" },
       "y": { "field": str, "aggregate"?: "sum"|"mean"|"median"|"min"|"max"|"count" },
       "color"?: { "field": str }
     },
@@ -35,6 +38,21 @@ Bar rules (the encoding decides — no extra flags):
     category field itself just tints the bars.
   - "aggregate" rides the QUANTITATIVE (value) channel: y for vertical bars,
     x for horizontal. For line/point/area, "color" splits rows into series.
+
+Time (temporal x): line/point/area place values at true calendar positions, so
+  irregular gaps take proportional space; bars REQUIRE a "timeUnit" to bucket
+  first (calendar truncation — "month" maps 2026-06-14 to 2026-06). A
+  DATE/DATETIME/TIMESTAMP/TIME column resolves to temporal, as does any string
+  column whose EVERY value parses as ISO; "type":"ordinal" restores even
+  spacing. "count" with no value field is an events-per-bucket histogram.
+  Accepted value shapes:
+    2026-07-05                    date
+    2026-07-05T14:30:00[.123]     datetime ('T' or a space; fraction optional)
+    2026-07-05T14:30:00Z / +02:00 datetime with offset (normalized to UTC)
+    14:30:00                      time of day (anchored to epoch day zero)
+  Values WITHOUT an offset read as UTC civil time; values WITH one normalize to
+  UTC. A column mixing the two compares correctly only if its naive values are
+  really UTC — benday cannot know, so the convention is documented, not guessed.
 
 Stdin: with --spec/--spec-file, stdin carries the data (a columnar envelope
   {"columns":[..],"rows":[[..]]} — extra keys ignored — or a JSON array of row

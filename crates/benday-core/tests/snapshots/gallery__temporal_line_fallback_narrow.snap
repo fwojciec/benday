@@ -1,0 +1,46 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+220┤               ⢀
+   │           ⢀⡄ ⡰⡜
+   │       ⢰⡄ ⢀⠇⢸⢰⠁
+   │     ⣀⠗⠇⢱ ⢸  ⠇
+   │   ⡇⢠⠛   ⠙⡇
+   │ ⡀⢸⢸⠎
+   │⢰⠙⡎⠈
+120┤⡎
+   └┴──────────────┴
+Jun 1 '26 Jun 26 '26
+
+--- meta ---
+{
+  "dropped_rows": 0,
+  "mark": "line",
+  "series": [
+    {
+      "color": "#00d5ef",
+      "name": "",
+      "points": 26
+    }
+  ],
+  "size": {
+    "columns": 20,
+    "rows": 10
+  },
+  "x": {
+    "domain": [
+      "2026-06-01",
+      "2026-06-26"
+    ],
+    "field": "day",
+    "type": "temporal"
+  },
+  "y": {
+    "domain": [
+      120.0,
+      220.0
+    ],
+    "field": "sessions"
+  }
+}

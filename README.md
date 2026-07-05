@@ -40,7 +40,8 @@ A strict subset of Vega-Lite:
   },
   "mark": "bar" | "line" | "point" | "area",
   "encoding": {
-    "x":      { "field": "...", "type"?: "quantitative" | "nominal" | "ordinal" },
+    "x":      { "field": "...", "type"?: "quantitative" | "temporal" | "nominal" | "ordinal",
+                "timeUnit"?: "year"|"quarter"|"month"|"week"|"day"|"hour"|"minute" },  // buckets time
     "y":      { "field": "...", "aggregate"?: "sum" | "mean" | "median" | "min" | "max" | "count" },
     "color"?: { "field": "..." }   // series split, or bar grouping
   },
@@ -64,6 +65,22 @@ Rows chart in arrival order, so `ORDER BY` in the producing query is the
 sort. Unknown spec fields are errors that name the fix, never silently
 ignored — a silently wrong chart is the one failure a caller can't detect.
 
+Time on the `x` axis is a real scale, not evenly-spaced labels. A `DATE`,
+`DATETIME`, `TIMESTAMP`, or `TIME` column — or any string column whose every
+value is ISO — charts on a calendar axis: ticks land on week / month / quarter
+boundaries and irregular gaps take proportional space. Line, point, and area
+plot true positions; bars need a `"timeUnit"` to bucket first (calendar
+truncation, so `"month"` maps `2026-06-14` to `2026-06`). `count` with no value
+field is an events-per-bucket histogram — the raw-logs story:
+
+```sh
+echo '[{"ts":"2026-06-14T08:03:00"},{"ts":"2026-06-14T08:41:00"},{"ts":"2026-06-14T10:12:00"}]' \
+  | benday --spec '{"mark":"bar","encoding":{"x":{"field":"ts","timeUnit":"hour"},"y":{"field":"ts","aggregate":"count"}}}'
+```
+
+Timestamps without an offset read as UTC civil time; with `Z` or `±hh:mm` they
+normalize to UTC. Explicit `"type": "ordinal"` restores evenly-spaced dates.
+
 ## Data on stdin
 
 With `--spec`/`--spec-file`, stdin carries the data, auto-detected between
@@ -74,8 +91,8 @@ two shapes:
   so pipe it straight in; `truncated` and `total_rows` flow to `--meta`.
 - **Bare array of row objects** — `[{"day":"mon","n":32}, ...]`.
 
-Declared dates chart as ordinal (ISO strings sort chronologically); date
-bucketing and label formatting belong to the SQL that produced the rows.
+Declared dates chart on a calendar axis — true spacing, calendar ticks;
+`"type": "ordinal"` restores even spacing for periods SQL already bucketed.
 
 ## Flags and output
 
@@ -102,10 +119,11 @@ live in `docs/plans/`.
 ## Status
 
 Works: bars (vertical, horizontal, grouped), line, point, area,
-multi-series legends, aggregation, type inference, three themes. Planned:
-stacked bars, value labels at bar ends, `benday schema` (JSON Schema
-output). Deliberately absent: temporal scales and sort grammar — SQL owns
-sorting, bucketing, and date formatting. Negative bars are a hard error,
+multi-series legends, aggregation, temporal scales (calendar ticks,
+`timeUnit` bucketing), type inference, three themes. Planned: stacked bars,
+value labels at bar ends, `benday schema` (JSON Schema output). Deliberately
+absent: a sort grammar — SQL owns sorting, and owns bucketing when it is
+there; benday owns time when SQL is absent. Negative bars are a hard error,
 not a silent miss.
 
 Named for [Ben-Day dots](https://en.wikipedia.org/wiki/Ben_Day_process):
