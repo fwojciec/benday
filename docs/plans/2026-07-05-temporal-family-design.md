@@ -153,13 +153,24 @@ untouched: truncation emits a CANONICAL ISO-PREFIX LABEL per bucket
 (`2026`, `2026-Q2`, `2026-06`, `2026-06-14`, `2026-06-14 09h`, …) —
 zero-padded, so the scanner's text interning groups correctly and
 `sort_cats`' lexical order IS chronological. After the scan, the bucket
-list is DENSIFIED: every calendar bucket between min and max is inserted,
-and `aggregate_cells` already renders an empty cell as a gap at a stable
-position — a quiet hour shows as absence, which is the whole point of the
-clustering story. `count` semantics: an empty bucket counts 0 (a zero
-bar), not a gap. No new aggregation code. `count` with no y field yields
-the events-per-hour debug histogram in one small spec — the
-raw-gcloud-logs story.
+list is DENSIFIED: every calendar bucket between min and max is inserted
+as an empty cell. Empty cells then carry two scoped rules, because the
+plain vertical path currently ASSERTS every scanned cell is Some
+(`bars.rs` "a scanned category has values" — densify breaks that
+invariant by construction):
+
+- `count` of an empty bucket is `Some(0.0)` — count of an empty set is
+  well-defined — via an aggregation variant used ONLY by the densified
+  temporal path, so existing grouped-bar gap behavior is untouched.
+- Every other aggregate stays `None` (mean of nothing is undefined), and
+  the plain vertical path handles it the way the grouped path already
+  does (`if let Some(v)`): no bar glyph, but the bucket keeps its
+  position and tick — a gap at a stable position.
+
+A quiet hour therefore shows as a zero bar under `count` and as a gap
+under other aggregates, and non-timeUnit bars keep their invariant
+exactly as is. `count` with no y field yields the events-per-hour debug
+histogram in one small spec — the raw-gcloud-logs story.
 
 ## Errors that teach (error strings are API)
 
