@@ -1,0 +1,57 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+                                         referral volume by facility
+
+St. Mary's Regional Med…┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+Cedar Grove Community H…┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+Northlake Cardiovascula…┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+Riverside General Hospi…┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+      Lakeshore Memorial┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+ Pinecrest Health System┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+        Fairview Medical┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        │
+        Oak Ridge Clinic┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                        └┴───────┴────────┴───────┴────────┴───────┴────────┴───────┴
+                         0      200      400     600      800    1000     1200   1400
+
+--- meta ---
+{
+  "direction": "horizontal",
+  "dropped_rows": 0,
+  "mark": "bar",
+  "size": {
+    "columns": 85,
+    "rows": 19
+  },
+  "x": {
+    "aggregate": "sum",
+    "domain": [
+      0.0,
+      1400.0
+    ],
+    "field": "volume",
+    "type": "quantitative"
+  },
+  "y": {
+    "categories": [
+      "St. Mary's Regional Medical Center",
+      "Cedar Grove Community Hospital",
+      "Northlake Cardiovascular Institute",
+      "Riverside General Hospital",
+      "Lakeshore Memorial",
+      "Pinecrest Health System",
+      "Fairview Medical",
+      "Oak Ridge Clinic"
+    ],
+    "field": "facility",
+    "type": "nominal"
+  }
+}

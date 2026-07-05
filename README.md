@@ -44,8 +44,18 @@ A strict subset of Vega-Lite:
 }
 ```
 
-Types are inferred from the data when omitted. Flags: `--marker
-braille|octant`, `--bar-style dots|blocks`, `--theme
+Types are inferred from the data when omitted. Two bar rules follow from the
+encoding, with no extra flags:
+
+- **Orientation.** A quantitative `x` with a categorical `y` draws
+  *horizontal* bars — they run from the nominal axis toward the quantitative
+  one, and the plot height is sized to the category count (so a ranking never
+  gets squeezed). Categorical `x` + quantitative `y` stays vertical.
+- **Color as grouping.** On a bar chart, `color` naming a *third* field splits
+  each category into a grouped cluster (one bar per series). `color` naming the
+  category field itself just tints the existing bars.
+
+Flags: `--marker braille|octant`, `--bar-style dots|blocks`, `--theme
 benday|lichtenstein|rotogravure`, `--width/--height`, `--no-color`,
 `--meta`. Exit codes: `0` ok, `2` invalid spec, `3` data doesn't fit the
 encoding; errors are JSON on stderr.
@@ -151,10 +161,12 @@ cargo install --path crates/benday-cli
 
 Early, but the foundation is in place: the compile → Scene → rasterize
 pipeline, its golden spec→scene corpus, and the glyph-gallery characterization
-tests. Works: all four marks, multi-series lines with legends, aggregation,
-type inference, themes. Planned: temporal scales, `benday schema` (JSON
-Schema output), histograms/binning, negative and horizontal bars, `layer`
-composition, a Claude Code skill file.
+tests. Works: all four marks, multi-series lines with legends, horizontal bars
+(content-sized rankings) and grouped bars (vertical or horizontal),
+aggregation, type inference, themes. Planned: temporal scales, `benday schema`
+(JSON Schema output), histograms/binning, stacked bars, `layer` composition, a
+Claude Code skill file. Negative bars remain unsupported (a hard error, not a
+silent miss).
 
 MIT. Octant glyph table derived from
 [ratatui](https://github.com/ratatui/ratatui) (MIT).

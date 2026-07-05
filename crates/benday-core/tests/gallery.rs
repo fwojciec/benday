@@ -181,3 +181,84 @@ fn colored_variants() {
         },
     );
 }
+
+/// The bar family beyond plain vertical bars: content-sized horizontal
+/// rankings, grouped vertical bars (color = a third field), grouped
+/// horizontal, and a colored grouped variant so the ANSI path for legend +
+/// series colors is characterized. Horizontal charts size their height to the
+/// category count, so those cases pass `height: None` — a fixed height would
+/// (correctly) be rejected as over-ceiling for content-sized rankings.
+#[test]
+fn bar_family_gallery() {
+    // Content-sized horizontal ranking: 8 facilities, some names past the
+    // 24-cell gutter so the `…` truncation shows. No height — the row count
+    // is derived from the data.
+    let ranking = parse(
+        r#"{"data":{"values":[
+            {"facility":"St. Mary's Regional Medical Center","volume":1284},
+            {"facility":"Cedar Grove Community Hospital","volume":1102},
+            {"facility":"Northlake Cardiovascular Institute","volume":968},
+            {"facility":"Riverside General Hospital","volume":947},
+            {"facility":"Lakeshore Memorial","volume":806},
+            {"facility":"Pinecrest Health System","volume":651},
+            {"facility":"Fairview Medical","volume":540},
+            {"facility":"Oak Ridge Clinic","volume":388}]},
+          "mark":"bar","title":"referral volume by facility",
+          "encoding":{"x":{"field":"volume"},"y":{"field":"facility"}}}"#,
+    );
+    snap(
+        "ranking_horizontal",
+        &ranking,
+        &RenderOptions {
+            width: Some(60),
+            height: None,
+            ..opts(60, 10)
+        },
+    );
+
+    // Grouped vertical bars: color names a third field (referral direction),
+    // so each quarter gets a paired in/out cluster.
+    let grouped = parse(
+        r#"{"data":{"values":[
+            {"q":"Q1","dir":"in","n":40},{"q":"Q1","dir":"out","n":25},
+            {"q":"Q2","dir":"in","n":55},{"q":"Q2","dir":"out","n":30},
+            {"q":"Q3","dir":"in","n":62},{"q":"Q3","dir":"out","n":44},
+            {"q":"Q4","dir":"in","n":71},{"q":"Q4","dir":"out","n":38}]},
+          "mark":"bar","title":"referrals in vs out by quarter",
+          "encoding":{"x":{"field":"q"},"y":{"field":"n"},"color":{"field":"dir"}}}"#,
+    );
+    snap("grouped_bars_referrals", &grouped, &opts(60, 10));
+
+    // Colored variant of the same grouped chart: characterizes the ANSI path
+    // for the legend and per-series bar colors.
+    snap(
+        "grouped_bars_ansi",
+        &grouped,
+        &RenderOptions {
+            color: true,
+            ..opts(60, 10)
+        },
+    );
+
+    // Small grouped horizontal: 3 facilities × 2 series, content-sized height.
+    let grouped_h = parse(
+        r#"{"data":{"values":[
+            {"facility":"St. Mary's Regional","dir":"inbound","n":420},
+            {"facility":"St. Mary's Regional","dir":"outbound","n":260},
+            {"facility":"Cedar Grove Community","dir":"inbound","n":310},
+            {"facility":"Cedar Grove Community","dir":"outbound","n":190},
+            {"facility":"Riverside General","dir":"inbound","n":275},
+            {"facility":"Riverside General","dir":"outbound","n":140}]},
+          "mark":"bar","title":"inbound vs outbound by facility",
+          "encoding":{"x":{"field":"n"},"y":{"field":"facility"},"color":{"field":"dir"}}}"#,
+    );
+    snap(
+        "grouped_horizontal_small",
+        &grouped_h,
+        &RenderOptions {
+            width: Some(50),
+            height: None,
+            ..opts(50, 10)
+        },
+    );
+}

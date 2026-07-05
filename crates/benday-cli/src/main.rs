@@ -10,6 +10,7 @@ const EXAMPLES: &str = r#"Examples:
   echo '{"data":{"values":[{"m":"jan","v":3},{"m":"feb","v":7}]},"mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}' | benday
   query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"m"},"y":{"field":"v"}}}'   # rows on stdin
   benday --spec-file chart.json --marker octant --theme lichtenstein
+  echo '{"data":{"values":[{"site":"north","n":128},{"site":"south","n":94}]},"mark":"bar","encoding":{"x":{"field":"n"},"y":{"field":"site"}}}' | benday   # quant x + categorical y = horizontal bars
 
 Spec (a strict Vega-Lite subset):
   { "data"?: { "values": [ {..row..}, ... ] },        // optional; omit to pipe rows on stdin

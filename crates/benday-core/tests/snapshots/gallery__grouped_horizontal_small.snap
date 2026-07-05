@@ -1,0 +1,58 @@
+---
+source: crates/benday-core/tests/gallery.rs
+expression: bundle
+---
+                               inbound vs outbound by facility
+
+  St. Mary's Regional┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                     │⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                     │
+Cedar Grove Community┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                     │⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                     │
+    Riverside General┤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                     │⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+                     └┴─────────┴─────────┴────────┴─────────┴─────────┴
+                      0        100       200      300       400      500
+                      ── inbound   ── outbound
+
+--- meta ---
+{
+  "direction": "horizontal",
+  "dropped_rows": 0,
+  "mark": "bar",
+  "series": [
+    {
+      "color": "#55c4fe",
+      "name": "inbound",
+      "points": 3
+    },
+    {
+      "color": "#6cd092",
+      "name": "outbound",
+      "points": 3
+    }
+  ],
+  "size": {
+    "columns": 72,
+    "rows": 13
+  },
+  "x": {
+    "aggregate": "sum",
+    "domain": [
+      0.0,
+      500.0
+    ],
+    "field": "n",
+    "type": "quantitative"
+  },
+  "y": {
+    "categories": [
+      "St. Mary's Regional",
+      "Cedar Grove Community",
+      "Riverside General"
+    ],
+    "field": "facility",
+    "type": "nominal"
+  }
+}
