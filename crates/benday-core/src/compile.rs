@@ -262,6 +262,188 @@ pub(crate) fn truncate(s: &str, max: usize) -> String {
     }
 }
 
+/// The type-precedence contract, in ONE place: an explicit spec `type` beats a
+/// declared column type beats inference from the data. (Bar ORIENTATION
+/// resolution deliberately uses a native-typed inference rung instead — see
+/// `bar_route`.)
+fn resolved_type(ch: &Channel, table: &Table) -> FieldType {
+    ch.ty
+        .or_else(|| table.declared.get(&ch.field).copied())
+        .unwrap_or_else(|| data::infer_type(&table.rows, &ch.field))
+}
+
+/// Width of the y-axis label gutter: the widest formatted tick.
+fn tick_gutter(scale: &Linear) -> usize {
+    scale
+        .ticks()
+        .iter()
+        .map(|t| fmt_tick(*t, scale.step).chars().count())
+        .max()
+        .unwrap_or(1)
+}
+
+/// Centered title over the plot, plus the rows it occupies — the title and a
+/// blank row of breathing room beneath it, or zero without one.
+fn place_title(spec: &Spec, gutter: usize, plot_w: usize) -> (Option<Placed>, usize) {
+    let title = spec.title.as_deref().map(|t| Placed {
+        text: t.to_string(),
+        col: gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2,
+        row: 0,
+    });
+    let rows = if title.is_some() { 2 } else { 0 };
+    (title, rows)
+}
+
+/// Right-aligned category names for the horizontal-bar gutter, each truncated
+/// to 24 cells (with a visible '…'); the gutter is the widest surviving name.
+fn name_gutter(cats: &[String]) -> (Vec<String>, usize) {
+    let names: Vec<String> = cats.iter().map(|c| truncate(c, 24)).collect();
+    let gutter = names.iter().map(|s| s.chars().count()).max().unwrap_or(1);
+    (names, gutter)
+}
+
+// --- Error constructors. These strings are CONTRACT: agents pattern-match
+// them to self-correct, and corpus snapshots pin them — each exists once.
+
+/// Negative bar values are rejected, in every orientation.
+fn negative_bar_error() -> Error {
+    Error::Data("negative values are not yet supported for mark \"bar\"; use mark \"line\"".into())
+}
+
+/// More series than palette colors: color is the sole channel identifying a
+/// series, so cycling the palette would make two series indistinguishable.
+fn palette_cap_error(n_series: usize, palette_len: usize, color_field: &str) -> Error {
+    Error::Data(format!(
+        "{n_series} series exceed the {palette_len} distinguishable series colors; \
+         aggregate or filter \"{color_field}\""
+    ))
+}
+
+/// A bar scan that yielded no usable rows.
+fn no_rows_error(value_field: &str, cat_field: &str) -> Error {
+    Error::Data(format!(
+        "no usable rows: field \"{value_field}\" has no numeric values \
+         (or \"{cat_field}\" is always missing)"
+    ))
+}
+
+/// Horizontal-bar content taller than the height ceiling.
+fn height_ceiling_error(n_bars: usize, content: usize) -> Error {
+    Error::Data(format!(
+        "{n_bars} bars need height {content}; filter or aggregate, or raise --height"
+    ))
+}
+
+/// One pass over the rows for ANY bar variant: categories (first-seen) down
+/// one dimension, series (first-seen; one unnamed series when `series_field`
+/// is None) down the other, each cell the raw values awaiting aggregation.
+/// A `count` aggregate yields 1.0 per row without reading the value field.
+struct BarScan {
+    cats: Vec<String>,
+    series: Vec<String>,
+    /// `[category][series]` → raw values; an empty Vec is a missing cell.
+    cells: Vec<Vec<Vec<f64>>>,
+    dropped: usize,
+}
+
+fn scan_bars(
+    rows: &[Row],
+    cat_field: &str,
+    value_field: &str,
+    series_field: Option<&str>,
+    agg: Aggregate,
+) -> BarScan {
+    let mut cats: Vec<String> = Vec::new();
+    let mut series: Vec<String> = match series_field {
+        Some(_) => Vec::new(),
+        None => vec![String::new()],
+    };
+    let mut raw: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+    let mut dropped = 0usize;
+    for row in rows {
+        let Some(cv) = row.get(cat_field) else {
+            dropped += 1;
+            continue;
+        };
+        let vn = if agg == Aggregate::Count {
+            Some(1.0)
+        } else {
+            row.get(value_field).and_then(data::num)
+        };
+        let Some(vn) = vn else {
+            dropped += 1;
+            continue;
+        };
+        let ci = index_of_or_push(&mut cats, data::text(cv));
+        let si = match series_field {
+            Some(sf) => {
+                let name = row.get(sf).map(data::text).unwrap_or_else(|| "null".into());
+                index_of_or_push(&mut series, name)
+            }
+            None => 0,
+        };
+        raw.entry((ci, si)).or_default().push(vn);
+    }
+    let mut cells = vec![vec![Vec::new(); series.len()]; cats.len()];
+    for ((ci, si), v) in raw {
+        cells[ci][si] = v;
+    }
+    BarScan {
+        cats,
+        series,
+        cells,
+        dropped,
+    }
+}
+
+/// First-seen interning: the index of `item`, pushing it if new.
+fn index_of_or_push(list: &mut Vec<String>, item: String) -> usize {
+    match list.iter().position(|s| *s == item) {
+        Some(i) => i,
+        None => {
+            list.push(item);
+            list.len() - 1
+        }
+    }
+}
+
+/// Lexical category sort for ordinal axes (ISO dates sort chronologically),
+/// carrying each category's cell row along. Series order stays first-seen.
+fn sort_cats(cats: Vec<String>, cells: Vec<Vec<Vec<f64>>>) -> (Vec<String>, Vec<Vec<Vec<f64>>>) {
+    let mut pairs: Vec<(String, Vec<Vec<f64>>)> = cats.into_iter().zip(cells).collect();
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    pairs.into_iter().unzip()
+}
+
+/// Aggregate every cell (an empty cell stays `None` — a visible gap at a
+/// stable position), rejecting negative results, tracking the maximum for the
+/// value scale.
+#[allow(clippy::type_complexity)]
+fn aggregate_cells(
+    cells: &[Vec<Vec<f64>>],
+    agg: Aggregate,
+) -> Result<(Vec<Vec<Option<f64>>>, f64), Error> {
+    let mut vmax = f64::NEG_INFINITY;
+    let mut out = Vec::with_capacity(cells.len());
+    for row in cells {
+        let mut out_row = Vec::with_capacity(row.len());
+        for values in row {
+            if values.is_empty() {
+                out_row.push(None);
+                continue;
+            }
+            let v = aggregate(values, agg);
+            if v < 0.0 {
+                return Err(negative_bar_error());
+            }
+            vmax = vmax.max(v);
+            out_row.push(Some(v));
+        }
+        out.push(out_row);
+    }
+    Ok((out, vmax))
+}
+
 /// Resolve a spec into a Scene: every data- and layout-dependent decision made,
 /// geometry normalized, colors baked in. Bars and xy marks share `preflight`.
 pub fn compile(spec: &Spec, table: &Table, opts: &CompileOptions) -> Result<Scene, Error> {
@@ -316,87 +498,37 @@ fn compile_bar(
         return compile_bar_grouped(spec, table, opts, plot_w, plot_h);
     }
 
-    let mut cats: Vec<String> = Vec::new();
-    let mut groups: Vec<Vec<f64>> = Vec::new();
-    let mut dropped = 0usize;
-    for row in rows {
-        let Some(xv) = row.get(xf) else {
-            dropped += 1;
-            continue;
-        };
-        let yn = if agg == Aggregate::Count {
-            Some(1.0)
-        } else {
-            row.get(yf).and_then(data::num)
-        };
-        let Some(yn) = yn else {
-            dropped += 1;
-            continue;
-        };
-        let cat = data::text(xv);
-        match cats.iter().position(|c| *c == cat) {
-            Some(i) => groups[i].push(yn),
-            None => {
-                cats.push(cat);
-                groups.push(vec![yn]);
-            }
-        }
-    }
+    let scan = scan_bars(rows, xf, yf, None, agg);
+    let (mut cats, mut cells, dropped) = (scan.cats, scan.cells, scan.dropped);
     if cats.is_empty() {
-        return Err(Error::Data(format!(
-            "no usable rows: field \"{yf}\" has no numeric values (or \"{xf}\" is always missing)"
-        )));
+        return Err(no_rows_error(yf, xf));
     }
     // Bars always treat x as categorical; the resolved x type only decides
     // whether categories sort chronologically (ordinal DATE/TIMESTAMP or an
-    // explicit ordinal spec type). `compile_bar` is index-free — cats and
-    // groups are parallel — so sort the pairs together before aggregation.
-    let xt = spec
-        .encoding
-        .x
-        .ty
-        .or_else(|| table.declared.get(xf).copied())
-        .unwrap_or_else(|| data::infer_type(rows, xf));
-    if xt == FieldType::Ordinal {
-        let mut pairs: Vec<(String, Vec<f64>)> = cats.into_iter().zip(groups).collect();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
-        let (c, g): (Vec<String>, Vec<Vec<f64>>) = pairs.into_iter().unzip();
-        cats = c;
-        groups = g;
+    // explicit ordinal spec type).
+    if resolved_type(&spec.encoding.x, table) == FieldType::Ordinal {
+        (cats, cells) = sort_cats(cats, cells);
     }
-    let values: Vec<f64> = groups.iter().map(|g| aggregate(g, agg)).collect();
-    if values.iter().any(|v| *v < 0.0) {
-        return Err(Error::Data(
-            "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
-        ));
-    }
-    let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    // Raw per-category value counts, for --meta.
+    let series_points: Vec<usize> = cells.iter().map(|r| r[0].len()).collect();
+    let (agg_cells, vmax) = aggregate_cells(&cells, agg)?;
+    // Plain bars have exactly one (unnamed) series, and a category only exists
+    // because a row landed in it — every cell is Some.
+    let values: Vec<f64> = agg_cells
+        .iter()
+        .map(|r| r[0].expect("plain bars: a scanned category has values"))
+        .collect();
     let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
     // Grouped color was routed away above, so any remaining color channel names
     // the x field: a categorical tint (one color per bar, not per series).
     let categorical = spec.encoding.color.is_some();
 
     // --- Layout.
-    // Title gets a blank row beneath it — breathing room (design doc).
-    let title_rows = if spec.title.is_some() { 2 } else { 0 };
-    let gutter = y
-        .ticks()
-        .iter()
-        .map(|t| fmt_tick(*t, y.step).chars().count())
-        .max()
-        .unwrap_or(1);
+    let gutter = tick_gutter(&y);
     let columns = gutter + 1 + plot_w;
+    let (title, title_rows) = place_title(spec, gutter, plot_w);
     let total_rows = title_rows + plot_h + 2;
     let top = title_rows;
-
-    let title = spec.title.as_deref().map(|t| {
-        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
-        Placed {
-            text: t.to_string(),
-            col,
-            row: 0,
-        }
-    });
 
     let ticks = y_ticks(&y, plot_h, top);
 
@@ -470,7 +602,7 @@ fn compile_bar(
             x_field: xf.clone(),
             y_field: yf.clone(),
             aggregate: Some(agg),
-            series_points: groups.iter().map(Vec::len).collect(),
+            series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
             total_rows: table.provenance.total_rows,
@@ -500,90 +632,26 @@ fn compile_bar_grouped(
     let agg = spec.encoding.y.aggregate.unwrap_or(Aggregate::Sum);
     let theme = &opts.theme;
 
-    // Scan into (category, series) cells: categories and series in first-seen
-    // order, each cell a vector of raw values to aggregate.
-    let mut cats: Vec<String> = Vec::new();
-    let mut series_names: Vec<String> = Vec::new();
-    let mut raw: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
-    let mut dropped = 0usize;
-    for row in rows {
-        let Some(xv) = row.get(xf) else {
-            dropped += 1;
-            continue;
-        };
-        let yn = if agg == Aggregate::Count {
-            Some(1.0)
-        } else {
-            row.get(yf).and_then(data::num)
-        };
-        let Some(yn) = yn else {
-            dropped += 1;
-            continue;
-        };
-        let cat = data::text(xv);
-        let sname = row.get(cf).map(data::text).unwrap_or_else(|| "null".into());
-        let ci = match cats.iter().position(|c| *c == cat) {
-            Some(i) => i,
-            None => {
-                cats.push(cat);
-                cats.len() - 1
-            }
-        };
-        let si = match series_names.iter().position(|s| *s == sname) {
-            Some(i) => i,
-            None => {
-                series_names.push(sname);
-                series_names.len() - 1
-            }
-        };
-        raw.entry((ci, si)).or_default().push(yn);
-    }
+    let scan = scan_bars(rows, xf, yf, Some(cf), agg);
+    let (mut cats, mut raw_cells, dropped) = (scan.cats, scan.cells, scan.dropped);
+    let series_names = scan.series;
     if cats.is_empty() {
-        return Err(Error::Data(format!(
-            "no usable rows: field \"{yf}\" has no numeric values (or \"{xf}\" is always missing)"
-        )));
+        return Err(no_rows_error(yf, xf));
     }
 
     // Ordinal x sorts its categories lexically (declared DATE/TIMESTAMP or an
-    // explicit ordinal type). Cells are keyed by category index, so remap the
-    // keys alongside the sort; series order stays first-seen.
-    let xt = spec
-        .encoding
-        .x
-        .ty
-        .or_else(|| table.declared.get(xf).copied())
-        .unwrap_or_else(|| data::infer_type(rows, xf));
-    if xt == FieldType::Ordinal {
-        let mut order: Vec<usize> = (0..cats.len()).collect();
-        order.sort_by(|&a, &b| cats[a].cmp(&cats[b]));
-        let mut remap = vec![0usize; cats.len()];
-        for (new, &old) in order.iter().enumerate() {
-            remap[old] = new;
-        }
-        let mut sorted = vec![String::new(); cats.len()];
-        for (old, c) in cats.into_iter().enumerate() {
-            sorted[remap[old]] = c;
-        }
-        cats = sorted;
-        raw = raw
-            .into_iter()
-            .map(|((ci, si), v)| ((remap[ci], si), v))
-            .collect();
+    // explicit ordinal type); series order stays first-seen.
+    if resolved_type(&spec.encoding.x, table) == FieldType::Ordinal {
+        (cats, raw_cells) = sort_cats(cats, raw_cells);
     }
 
     let n_cats = cats.len();
     let n_series = series_names.len();
 
     // Palette cap (before layout): color is the only channel identifying a
-    // series here, so cycling the palette would make two series
-    // indistinguishable — reject loudly. Categorical tint stays exempt (routed
-    // to compile_bar). Message matches the chrome cycle's multi-series line cap.
+    // series here — categorical tint stays exempt (routed to compile_bar).
     if n_series > theme.palette.len() {
-        return Err(Error::Data(format!(
-            "{} series exceed the {} distinguishable series colors; aggregate or filter \"{cf}\"",
-            n_series,
-            theme.palette.len(),
-        )));
+        return Err(palette_cap_error(n_series, theme.palette.len(), cf));
     }
 
     // Fit check (before layout): each slot must hold one column per series plus
@@ -596,41 +664,14 @@ fn compile_bar_grouped(
         )));
     }
 
-    // Aggregate each cell; a missing cell stays `None` (empty slot).
-    let mut cells = vec![vec![None::<f64>; n_series]; n_cats];
-    for ((ci, si), v) in &raw {
-        cells[*ci][*si] = Some(aggregate(v, agg));
-    }
-    let mut vmax = f64::NEG_INFINITY;
-    for cell in cells.iter().flatten().flatten() {
-        if *cell < 0.0 {
-            return Err(Error::Data(
-                "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
-            ));
-        }
-        vmax = vmax.max(*cell);
-    }
+    let (cells, vmax) = aggregate_cells(&raw_cells, agg)?;
     let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
 
     // --- Layout (title, gutter, columns) — identical to plain bars.
-    let title_rows = if spec.title.is_some() { 2 } else { 0 };
-    let gutter = y
-        .ticks()
-        .iter()
-        .map(|t| fmt_tick(*t, y.step).chars().count())
-        .max()
-        .unwrap_or(1);
+    let gutter = tick_gutter(&y);
     let columns = gutter + 1 + plot_w;
+    let (title, title_rows) = place_title(spec, gutter, plot_w);
     let top = title_rows;
-
-    let title = spec.title.as_deref().map(|t| {
-        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
-        Placed {
-            text: t.to_string(),
-            col,
-            row: 0,
-        }
-    });
 
     let ticks = y_ticks(&y, plot_h, top);
 
@@ -781,62 +822,25 @@ fn compile_bar_h(
         return compile_bar_h_grouped(spec, table, opts, plot_w, raw_height);
     }
 
-    // Scan: categories from the Y field (first-seen), values from num(x). Count
-    // yields 1.0 per row without reading x (mirrors vertical y-count).
-    let mut cats: Vec<String> = Vec::new();
-    let mut groups: Vec<Vec<f64>> = Vec::new();
-    let mut dropped = 0usize;
-    for row in rows {
-        let Some(yv) = row.get(yf) else {
-            dropped += 1;
-            continue;
-        };
-        let xn = if agg == Aggregate::Count {
-            Some(1.0)
-        } else {
-            row.get(xf).and_then(data::num)
-        };
-        let Some(xn) = xn else {
-            dropped += 1;
-            continue;
-        };
-        let cat = data::text(yv);
-        match cats.iter().position(|c| *c == cat) {
-            Some(i) => groups[i].push(xn),
-            None => {
-                cats.push(cat);
-                groups.push(vec![xn]);
-            }
-        }
-    }
+    // Scan: categories from the Y field, values from num(x) — the vertical
+    // scan with the channels swapped.
+    let scan = scan_bars(rows, yf, xf, None, agg);
+    let (mut cats, mut cells, dropped) = (scan.cats, scan.cells, scan.dropped);
     if cats.is_empty() {
-        return Err(Error::Data(format!(
-            "no usable rows: field \"{xf}\" has no numeric values (or \"{yf}\" is always missing)"
-        )));
+        return Err(no_rows_error(xf, yf));
     }
     // Ordinal y (declared DATE/TIMESTAMP or an explicit ordinal spec type) sorts
-    // its categories lexically; nominal keeps first-seen (ranking) order. cats
-    // and groups are parallel, so sort the pairs together.
-    let yt = spec
-        .encoding
-        .y
-        .ty
-        .or_else(|| table.declared.get(yf).copied())
-        .unwrap_or_else(|| data::infer_type(rows, yf));
-    if yt == FieldType::Ordinal {
-        let mut pairs: Vec<(String, Vec<f64>)> = cats.into_iter().zip(groups).collect();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
-        let (c, g): (Vec<String>, Vec<Vec<f64>>) = pairs.into_iter().unzip();
-        cats = c;
-        groups = g;
+    // its categories lexically; nominal keeps first-seen (ranking) order.
+    if resolved_type(&spec.encoding.y, table) == FieldType::Ordinal {
+        (cats, cells) = sort_cats(cats, cells);
     }
-    let values: Vec<f64> = groups.iter().map(|g| aggregate(g, agg)).collect();
-    if values.iter().any(|v| *v < 0.0) {
-        return Err(Error::Data(
-            "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
-        ));
-    }
-    let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    // Raw per-category value counts, for --meta.
+    let series_points: Vec<usize> = cells.iter().map(|r| r[0].len()).collect();
+    let (agg_cells, vmax) = aggregate_cells(&cells, agg)?;
+    let values: Vec<f64> = agg_cells
+        .iter()
+        .map(|r| r[0].expect("plain bars: a scanned category has values"))
+        .collect();
     let xscale = Linear::nice_from(0.0, vmax, (plot_w / 10).clamp(2, 7), true);
 
     let n = cats.len();
@@ -847,9 +851,7 @@ fn compile_bar_h(
     let content = n * 2 - 1;
     let ceiling = raw_height.unwrap_or(40);
     if content > ceiling {
-        return Err(Error::Data(format!(
-            "{n} bars need height {content}; filter or aggregate, or raise --height"
-        )));
+        return Err(height_ceiling_error(n, content));
     }
     let plot_h = content;
 
@@ -857,25 +859,13 @@ fn compile_bar_h(
     // the category (y) field: a categorical tint (one color per bar).
     let categorical = spec.encoding.color.is_some();
 
-    // Name gutter: right-aligned category names, each truncated to 24 (with a
-    // visible '…'); the gutter is the widest surviving name.
-    let names: Vec<String> = cats.iter().map(|c| truncate(c, 24)).collect();
-    let gutter = names.iter().map(|s| s.chars().count()).max().unwrap_or(1);
+    let (names, gutter) = name_gutter(&cats);
     let cat_scale = Linear::indices(n);
 
-    let title_rows = if spec.title.is_some() { 2 } else { 0 };
     let columns = gutter + 1 + plot_w;
+    let (title, title_rows) = place_title(spec, gutter, plot_w);
     let total_rows = title_rows + plot_h + 2;
     let top = title_rows;
-
-    let title = spec.title.as_deref().map(|t| {
-        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
-        Placed {
-            text: t.to_string(),
-            col,
-            row: 0,
-        }
-    });
 
     // One bar per row, blank row between: category i sits on plot row i*2.
     let rows_f = plot_h as f64;
@@ -947,7 +937,7 @@ fn compile_bar_h(
             x_field: xf.clone(),
             y_field: yf.clone(),
             aggregate: Some(agg),
-            series_points: groups.iter().map(Vec::len).collect(),
+            series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
             total_rows: table.provenance.total_rows,
@@ -982,77 +972,19 @@ fn compile_bar_h_grouped(
     let agg = spec.encoding.x.aggregate.unwrap_or(Aggregate::Sum);
     let theme = &opts.theme;
 
-    // Scan into (category, series) cells: categories from Y and series from the
-    // color field, both first-seen; each cell a vector of raw values. Count
-    // yields 1.0 per row without reading x (mirrors the plain horizontal scan).
-    let mut cats: Vec<String> = Vec::new();
-    let mut series_names: Vec<String> = Vec::new();
-    let mut raw: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
-    let mut dropped = 0usize;
-    for row in rows {
-        let Some(yv) = row.get(yf) else {
-            dropped += 1;
-            continue;
-        };
-        let xn = if agg == Aggregate::Count {
-            Some(1.0)
-        } else {
-            row.get(xf).and_then(data::num)
-        };
-        let Some(xn) = xn else {
-            dropped += 1;
-            continue;
-        };
-        let cat = data::text(yv);
-        let sname = row.get(cf).map(data::text).unwrap_or_else(|| "null".into());
-        let ci = match cats.iter().position(|c| *c == cat) {
-            Some(i) => i,
-            None => {
-                cats.push(cat);
-                cats.len() - 1
-            }
-        };
-        let si = match series_names.iter().position(|s| *s == sname) {
-            Some(i) => i,
-            None => {
-                series_names.push(sname);
-                series_names.len() - 1
-            }
-        };
-        raw.entry((ci, si)).or_default().push(xn);
-    }
+    // Scan: categories from the Y field, series from the color field — the
+    // vertical grouped scan with the channels swapped.
+    let scan = scan_bars(rows, yf, xf, Some(cf), agg);
+    let (mut cats, mut raw_cells, dropped) = (scan.cats, scan.cells, scan.dropped);
+    let series_names = scan.series;
     if cats.is_empty() {
-        return Err(Error::Data(format!(
-            "no usable rows: field \"{xf}\" has no numeric values (or \"{yf}\" is always missing)"
-        )));
+        return Err(no_rows_error(xf, yf));
     }
 
     // Ordinal y (declared DATE/TIMESTAMP or an explicit ordinal type) sorts its
-    // categories lexically. Cells are keyed by category index, so remap the keys
-    // alongside the sort; series order stays first-seen. (Mirrors the vertical
-    // grouped ordinal remap.)
-    let yt = spec
-        .encoding
-        .y
-        .ty
-        .or_else(|| table.declared.get(yf).copied())
-        .unwrap_or_else(|| data::infer_type(rows, yf));
-    if yt == FieldType::Ordinal {
-        let mut order: Vec<usize> = (0..cats.len()).collect();
-        order.sort_by(|&a, &b| cats[a].cmp(&cats[b]));
-        let mut remap = vec![0usize; cats.len()];
-        for (new, &old) in order.iter().enumerate() {
-            remap[old] = new;
-        }
-        let mut sorted = vec![String::new(); cats.len()];
-        for (old, c) in cats.into_iter().enumerate() {
-            sorted[remap[old]] = c;
-        }
-        cats = sorted;
-        raw = raw
-            .into_iter()
-            .map(|((ci, si), v)| ((remap[ci], si), v))
-            .collect();
+    // categories lexically; series order stays first-seen.
+    if resolved_type(&spec.encoding.y, table) == FieldType::Ordinal {
+        (cats, raw_cells) = sort_cats(cats, raw_cells);
     }
 
     let n_cats = cats.len();
@@ -1060,29 +992,11 @@ fn compile_bar_h_grouped(
 
     // Palette cap (before layout): color is the only channel identifying a
     // series, so cycling the palette would make two series indistinguishable.
-    // Identical to the vertical grouped cap, same message with the color field.
     if n_series > theme.palette.len() {
-        return Err(Error::Data(format!(
-            "{} series exceed the {} distinguishable series colors; aggregate or filter \"{cf}\"",
-            n_series,
-            theme.palette.len(),
-        )));
+        return Err(palette_cap_error(n_series, theme.palette.len(), cf));
     }
 
-    // Aggregate each cell; a missing cell stays `None` (empty row).
-    let mut cells = vec![vec![None::<f64>; n_series]; n_cats];
-    for ((ci, si), v) in &raw {
-        cells[*ci][*si] = Some(aggregate(v, agg));
-    }
-    let mut vmax = f64::NEG_INFINITY;
-    for cell in cells.iter().flatten().flatten() {
-        if *cell < 0.0 {
-            return Err(Error::Data(
-                "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
-            ));
-        }
-        vmax = vmax.max(*cell);
-    }
+    let (cells, vmax) = aggregate_cells(&raw_cells, agg)?;
     let xscale = Linear::nice_from(0.0, vmax, (plot_w / 10).clamp(2, 7), true);
 
     // Content-sized height: each category block is `n_series` bar rows plus one
@@ -1092,31 +1006,16 @@ fn compile_bar_h_grouped(
     let content = n_cats * (n_series + 1) - 1;
     let ceiling = raw_height.unwrap_or(40);
     if content > ceiling {
-        return Err(Error::Data(format!(
-            "{} bars need height {content}; filter or aggregate, or raise --height",
-            n_cats * n_series
-        )));
+        return Err(height_ceiling_error(n_cats * n_series, content));
     }
     let plot_h = content;
 
-    // Name gutter: right-aligned category names, each truncated to 24; the raw
-    // names ride along in `y_axis.categories`.
-    let names: Vec<String> = cats.iter().map(|c| truncate(c, 24)).collect();
-    let gutter = names.iter().map(|s| s.chars().count()).max().unwrap_or(1);
+    let (names, gutter) = name_gutter(&cats);
     let cat_scale = Linear::indices(n_cats);
 
-    let title_rows = if spec.title.is_some() { 2 } else { 0 };
     let columns = gutter + 1 + plot_w;
+    let (title, title_rows) = place_title(spec, gutter, plot_w);
     let top = title_rows;
-
-    let title = spec.title.as_deref().map(|t| {
-        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
-        Placed {
-            text: t.to_string(),
-            col,
-            row: 0,
-        }
-    });
 
     // One bar per series row within a block; a series keeps its within-block
     // offset in every block. The category name centers on its block:
@@ -1229,20 +1128,8 @@ fn compile_xy(
     let theme = &opts.theme;
     let mark = spec.mark;
 
-    // Type resolution precedence: explicit spec type > declared column type >
-    // inference from the data.
-    let xt = spec
-        .encoding
-        .x
-        .ty
-        .or_else(|| table.declared.get(xf).copied())
-        .unwrap_or_else(|| data::infer_type(rows, xf));
-    let yt = spec
-        .encoding
-        .y
-        .ty
-        .or_else(|| table.declared.get(yf).copied())
-        .unwrap_or_else(|| data::infer_type(rows, yf));
+    let xt = resolved_type(&spec.encoding.x, table);
+    let yt = resolved_type(&spec.encoding.y, table);
     if yt != FieldType::Quantitative {
         return Err(Error::Data(format!(
             "mark {mark:?} needs a quantitative y, but field \"{yf}\" holds categorical values; \
@@ -1357,34 +1244,15 @@ fn compile_xy(
         let cf = series_field
             .as_deref()
             .expect("more than one series requires a color field");
-        return Err(Error::Data(format!(
-            "{} series exceed the {} distinguishable series colors; aggregate or filter \"{cf}\"",
-            series.len(),
-            theme.palette.len(),
-        )));
+        return Err(palette_cap_error(series.len(), theme.palette.len(), cf));
     }
 
     // --- Layout: optional title row above the plot, y gutter to its left,
     // legend below the x labels.
-    // Title gets a blank row beneath it — breathing room (design doc).
-    let title_rows = if spec.title.is_some() { 2 } else { 0 };
-    let gutter = yscale
-        .ticks()
-        .iter()
-        .map(|t| fmt_tick(*t, yscale.step).chars().count())
-        .max()
-        .unwrap_or(1);
+    let gutter = tick_gutter(&yscale);
     let columns = gutter + 1 + plot_w;
+    let (title, title_rows) = place_title(spec, gutter, plot_w);
     let top = title_rows;
-
-    let title = spec.title.as_deref().map(|t| {
-        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
-        Placed {
-            text: t.to_string(),
-            col,
-            row: 0,
-        }
-    });
 
     // Legend (multi-series only): "── name" entries flow below the x labels,
     // wrapping before the right edge. Entries are never clipped; a name wider
