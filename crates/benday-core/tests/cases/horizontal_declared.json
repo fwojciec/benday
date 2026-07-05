@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"facility","type":"STRING"},{"name":"volume","type":"INT64"}],"rows":[["St. Mary's Regional",980],["Cedar Grove Hospital",742],["Riverside General",615],["Lakeshore Memorial",498]]},"mark":"bar","encoding":{"x":{"field":"volume"},"y":{"field":"facility"}}}

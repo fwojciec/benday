@@ -1,0 +1,161 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 93,
+    "rows": 9
+  },
+  "plot": {
+    "x": 21,
+    "y": 0,
+    "w": 72,
+    "h": 7
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      3.0
+    ],
+    "step": 1.0,
+    "categories": [
+      "St. Mary's Regional",
+      "Cedar Grove Hospital",
+      "Riverside General",
+      "Lakeshore Memorial"
+    ],
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "St. Mary's Regional",
+        "row": 0
+      },
+      {
+        "value": 1.0,
+        "frac": 0.3333333333333333,
+        "label": "Cedar Grove Hospital",
+        "row": 2
+      },
+      {
+        "value": 2.0,
+        "frac": 0.6666666666666666,
+        "label": "Riverside General",
+        "row": 4
+      },
+      {
+        "value": 3.0,
+        "frac": 1.0,
+        "label": "Lakeshore Memorial",
+        "row": 6
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      1000.0
+    ],
+    "tick_cols": [
+      0,
+      14,
+      28,
+      43,
+      57,
+      71
+    ],
+    "labels": [
+      {
+        "text": "0",
+        "col": 21,
+        "row": 8
+      },
+      {
+        "text": "200",
+        "col": 34,
+        "row": 8
+      },
+      {
+        "text": "400",
+        "col": 48,
+        "row": 8
+      },
+      {
+        "text": "600",
+        "col": 63,
+        "row": 8
+      },
+      {
+        "text": "800",
+        "col": 77,
+        "row": 8
+      },
+      {
+        "text": "1000",
+        "col": 89,
+        "row": 8
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 0.98,
+            "h": 0.14285714285714285,
+            "color": "#ffc34e"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.2857142857142857,
+            "w": 0.742,
+            "h": 0.14285714285714285,
+            "color": "#bfcf5b"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.5714285714285714,
+            "w": 0.615,
+            "h": 0.14285714285714285,
+            "color": "#92d276"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.8571428571428571,
+            "w": 0.498,
+            "h": 0.14285714285714285,
+            "color": "#67d191"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "volume",
+    "y_field": "facility",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

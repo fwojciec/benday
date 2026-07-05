@@ -68,9 +68,27 @@ fn y_ticks(y: &Linear, plot_h: usize, top: usize) -> Vec<YTick> {
 /// the caller didn't ask for, which an agent reading dot art cannot detect.
 pub fn preflight(spec: &Spec, rows: &[Row]) -> Result<(), Error> {
     validate(spec)?;
-    data::check_field(rows, &spec.encoding.x.field)?;
-    if !matches!(spec.encoding.y.aggregate, Some(Aggregate::Count)) {
-        data::check_field(rows, &spec.encoding.y.field)?;
+    if spec.mark == Mark::Bar {
+        // Bar field checks are orientation-neutral, and must run BEFORE
+        // orientation is resolved: an absent field infers Nominal, so resolving
+        // orientation first would misroute a missing value field into the
+        // both-categorical error instead of reporting the missing field. Each
+        // channel's field must exist unless that channel is an intrinsic
+        // `count` (count needs no field). The category channel never carries
+        // count — count forces its channel to be the quantitative value axis —
+        // so this checks the category unconditionally and the value axis unless
+        // it's a count, in EITHER orientation.
+        if !matches!(spec.encoding.x.aggregate, Some(Aggregate::Count)) {
+            data::check_field(rows, &spec.encoding.x.field)?;
+        }
+        if !matches!(spec.encoding.y.aggregate, Some(Aggregate::Count)) {
+            data::check_field(rows, &spec.encoding.y.field)?;
+        }
+    } else {
+        data::check_field(rows, &spec.encoding.x.field)?;
+        if !matches!(spec.encoding.y.aggregate, Some(Aggregate::Count)) {
+            data::check_field(rows, &spec.encoding.y.field)?;
+        }
     }
     if let Some(c) = &spec.encoding.color {
         data::check_field(rows, &c.field)?;
@@ -86,7 +104,10 @@ fn validate(spec: &Spec) -> Result<(), Error> {
                 .into(),
         ));
     }
-    if spec.encoding.x.aggregate.is_some() {
+    // Aggregate-on-x is a blanket error for NON-bar marks only. For bars,
+    // quantitative x is now a legal (horizontal) route and `aggregate` placement
+    // is checked post-orientation, per compiler, against the CATEGORICAL channel.
+    if spec.mark != Mark::Bar && spec.encoding.x.aggregate.is_some() {
         return Err(Error::Spec(
             "`aggregate` on encoding.x is not supported; aggregation runs over y, grouped by x"
                 .into(),
@@ -99,14 +120,118 @@ fn validate(spec: &Spec) -> Result<(), Error> {
             ));
         }
     }
-    if spec.mark == Mark::Bar && spec.encoding.x.ty == Some(FieldType::Quantitative) {
-        return Err(Error::Spec(
-            "bar marks treat x as categorical; omit encoding.x.type, or use mark \"line\" \
-             or \"area\" for a quantitative x"
-                .into(),
-        ));
-    }
     Ok(())
+}
+
+/// Which way a bar chart runs. Resolved once, up front, from the count rule and
+/// the channel-type precedence chain.
+enum BarRoute {
+    Vertical,
+    Horizontal,
+}
+
+/// Resolve bar orientation. RESOLUTION ORDER IS A HARDENED CONTRACT:
+///   1. `count` on a channel makes it THE quantitative value channel (count is
+///      intrinsically numeric and its field may be absent from rows entirely,
+///      inferring Nominal — which must not misroute). y-count → vertical,
+///      x-count → horizontal, both → error.
+///   2. Otherwise resolve both channel types through precedence (spec `type` >
+///      declared column type > inference) and route by the type pair.
+///   3. Both-categorical: a coercion rescue (stdin-cycle contract) reconsiders
+///      channels WITHOUT an explicit spec `type`, biasing to vertical.
+fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
+    let rows = &table.rows;
+    let xf = &spec.encoding.x.field;
+    let yf = &spec.encoding.y.field;
+    let x_count = matches!(spec.encoding.x.aggregate, Some(Aggregate::Count));
+    let y_count = matches!(spec.encoding.y.aggregate, Some(Aggregate::Count));
+
+    // 1. Count rule FIRST.
+    match (x_count, y_count) {
+        (true, true) => {
+            return Err(Error::Spec(
+                "aggregate belongs on exactly one channel".into(),
+            ));
+        }
+        (false, true) => return Ok(BarRoute::Vertical),
+        (true, false) => return Ok(BarRoute::Horizontal),
+        (false, false) => {}
+    }
+
+    // 2. Resolve both channel types through the precedence chain. The inference
+    // rung is NATIVE-typed: a JSON string is categorical-SHAPED even when its
+    // contents are numeric (e.g. dice faces "1".."6"), so a string x stays a
+    // category and the bar stays vertical. Numeric strings that genuinely belong
+    // on the value axis are recovered by the coercion rescue below.
+    let resolve = |ch: &Channel, f: &str| -> FieldType {
+        ch.ty
+            .or_else(|| table.declared.get(f).copied())
+            .unwrap_or_else(|| native_type(rows, f))
+    };
+    let x_quant = resolve(&spec.encoding.x, xf) == FieldType::Quantitative;
+    let y_quant = resolve(&spec.encoding.y, yf) == FieldType::Quantitative;
+    match (x_quant, y_quant) {
+        (false, true) => Ok(BarRoute::Vertical),
+        (true, false) => Ok(BarRoute::Horizontal),
+        (true, true) => Err(bar_channel_error(xf, yf, "quantitative")),
+        (false, false) => {
+            // 3. Coercion rescue — ONLY channels without an explicit spec type
+            // (an explicit `"type"` is stated intent, never overridden). Bias
+            // to vertical (compat) when y coerces numeric, else horizontal.
+            if spec.encoding.y.ty.is_none() && data::infer_type(rows, yf) == FieldType::Quantitative
+            {
+                Ok(BarRoute::Vertical)
+            } else if spec.encoding.x.ty.is_none()
+                && data::infer_type(rows, xf) == FieldType::Quantitative
+            {
+                Ok(BarRoute::Horizontal)
+            } else {
+                Err(bar_channel_error(xf, yf, "categorical"))
+            }
+        }
+    }
+}
+
+/// Quantitative iff the field has a value and every present, non-null value is
+/// a NATIVE JSON number. Unlike `data::infer_type`, numeric STRINGS do not
+/// count: for orientation, a string-shaped field is a category (its values may
+/// still be coerced onto the value axis by the rescue or by `data::num`).
+fn native_type(rows: &[Row], field: &str) -> FieldType {
+    let mut saw_value = false;
+    for row in rows {
+        if let Some(v) = row.get(field) {
+            if v.is_null() {
+                continue;
+            }
+            saw_value = true;
+            if !v.is_number() {
+                return FieldType::Nominal;
+            }
+        }
+    }
+    if saw_value {
+        FieldType::Quantitative
+    } else {
+        FieldType::Nominal
+    }
+}
+
+/// The bar orientation-resolution error, for both-quantitative (`both` =
+/// "quantitative") and failed rescue (`both` = "categorical").
+fn bar_channel_error(xf: &str, yf: &str, both: &str) -> Error {
+    Error::Spec(format!(
+        "bar needs one categorical and one quantitative channel; both x (\"{xf}\") and y \
+         (\"{yf}\") resolved {both}; put categories on one axis or set an explicit \"type\""
+    ))
+}
+
+/// Aggregate placed on the CATEGORICAL channel. `value_axis` is the channel that
+/// SHOULD carry the aggregate ("y" for vertical, "x" for horizontal).
+fn bar_aggregate_error(value_axis: &str) -> Error {
+    Error::Spec(format!(
+        "aggregation runs over the quantitative channel, grouped by the categorical one; \
+         put `aggregate` on encoding.{value_axis}"
+    ))
 }
 
 pub(crate) fn aggregate(values: &[f64], agg: Aggregate) -> f64 {
@@ -143,7 +268,16 @@ pub fn compile(spec: &Spec, table: &Table, opts: &CompileOptions) -> Result<Scen
     preflight(spec, &table.rows)?;
     let (plot_w, plot_h) = plot_dims(opts.width, opts.height, spec);
     match spec.mark {
-        Mark::Bar => compile_bar(spec, table, opts, plot_w, plot_h),
+        Mark::Bar => match bar_route(spec, table)? {
+            BarRoute::Vertical => compile_bar(spec, table, opts, plot_w, plot_h),
+            // Horizontal bars are content-sized: their height is derived from the
+            // category count, not `plot_dims` (which collapses "no height" into
+            // the default 13 and so can't tell an explicit 13 from the default).
+            // Pass the RAW height Option straight through.
+            BarRoute::Horizontal => {
+                compile_bar_h(spec, table, opts, plot_w, opts.height.or(spec.height))
+            }
+        },
         Mark::Line | Mark::Point | Mark::Area => compile_xy(spec, table, opts, plot_w, plot_h),
     }
 }
@@ -168,6 +302,13 @@ fn compile_bar(
     let yf = &spec.encoding.y.field;
     let agg = spec.encoding.y.aggregate.unwrap_or(Aggregate::Sum);
     let theme = &opts.theme;
+
+    // Aggregate placement (post-orientation): x is the CATEGORICAL channel for
+    // vertical bars, so an aggregate there is misplaced — it runs over the
+    // quantitative value channel (y), grouped by the category.
+    if spec.encoding.x.aggregate.is_some() {
+        return Err(bar_aggregate_error("y"));
+    }
 
     // Grouped bars (color names a third field) take a separate path; the code
     // below handles plain (gradient) and categorical-tint (color == x) bars.
@@ -310,6 +451,7 @@ fn compile_bar(
         y_axis: YAxis {
             domain: [y.min, y.max],
             step: y.step,
+            categories: None,
             ticks,
         },
         x_axis: XAxis {
@@ -557,6 +699,7 @@ fn compile_bar_grouped(
         y_axis: YAxis {
             domain: [y.min, y.max],
             step: y.step,
+            categories: None,
             ticks,
         },
         x_axis: XAxis {
@@ -576,6 +719,236 @@ fn compile_bar_grouped(
             y_field: yf.clone(),
             aggregate: Some(agg),
             series_points,
+            data_source: table.provenance.source,
+            truncated: table.provenance.truncated,
+            total_rows: table.provenance.total_rows,
+        },
+    })
+}
+
+/// A quantitative x value axis: plot-relative tick columns plus greedily-placed
+/// tick labels. Extracted from `compile_xy`'s quantitative-x branch so the
+/// horizontal-bar value axis and the line/point/area value axis share ONE
+/// implementation. Behavior-neutral for xy: identical columns, anchors, and
+/// `place_x_labels` call as before.
+fn value_axis_x(
+    xscale: &Linear,
+    plot_w: usize,
+    gutter: usize,
+    columns: usize,
+    label_row: usize,
+) -> (Vec<usize>, Vec<Placed>) {
+    let tks = xscale.ticks();
+    let tick_cols: Vec<usize> = tks
+        .iter()
+        .map(|t| ((xscale.norm(*t) * (plot_w - 1) as f64).round() as usize).min(plot_w - 1))
+        .collect();
+    let anchors: Vec<(usize, String)> = tick_cols
+        .iter()
+        .zip(&tks)
+        .map(|(c, t)| (*c, fmt_tick(*t, xscale.step)))
+        .collect();
+    let labels = place_x_labels(&anchors, gutter, columns, label_row);
+    (tick_cols, labels)
+}
+
+/// Plain HORIZONTAL bars: quantitative x (the value axis) against categorical y
+/// (a ranking down the rows). Mirrors `compile_bar` with the axes swapped, but
+/// is content-sized in HEIGHT — one row per bar, one blank between — so the
+/// height comes from the RAW `Option<usize>` (see `plot_dims` note), not the
+/// default-collapsing dimension resolver.
+fn compile_bar_h(
+    spec: &Spec,
+    table: &Table,
+    opts: &CompileOptions,
+    plot_w: usize,
+    raw_height: Option<usize>,
+) -> Result<Scene, Error> {
+    let rows = &table.rows;
+    let xf = &spec.encoding.x.field; // value (quantitative)
+    let yf = &spec.encoding.y.field; // category
+    let agg = spec.encoding.x.aggregate.unwrap_or(Aggregate::Sum);
+    let theme = &opts.theme;
+
+    // Aggregate placement (post-orientation): y is the CATEGORICAL channel here.
+    if spec.encoding.y.aggregate.is_some() {
+        return Err(bar_aggregate_error("x"));
+    }
+    // A color naming a THIRD field (not the category y) would split the bars
+    // into grouped series — that is task 4.
+    if is_grouped(spec.encoding.color.as_ref(), yf) {
+        return Err(Error::Spec(
+            "grouped horizontal bars are not supported yet".into(),
+        ));
+    }
+
+    // Scan: categories from the Y field (first-seen), values from num(x). Count
+    // yields 1.0 per row without reading x (mirrors vertical y-count).
+    let mut cats: Vec<String> = Vec::new();
+    let mut groups: Vec<Vec<f64>> = Vec::new();
+    let mut dropped = 0usize;
+    for row in rows {
+        let Some(yv) = row.get(yf) else {
+            dropped += 1;
+            continue;
+        };
+        let xn = if agg == Aggregate::Count {
+            Some(1.0)
+        } else {
+            row.get(xf).and_then(data::num)
+        };
+        let Some(xn) = xn else {
+            dropped += 1;
+            continue;
+        };
+        let cat = data::text(yv);
+        match cats.iter().position(|c| *c == cat) {
+            Some(i) => groups[i].push(xn),
+            None => {
+                cats.push(cat);
+                groups.push(vec![xn]);
+            }
+        }
+    }
+    if cats.is_empty() {
+        return Err(Error::Data(format!(
+            "no usable rows: field \"{xf}\" has no numeric values (or \"{yf}\" is always missing)"
+        )));
+    }
+    // Ordinal y (declared DATE/TIMESTAMP or an explicit ordinal spec type) sorts
+    // its categories lexically; nominal keeps first-seen (ranking) order. cats
+    // and groups are parallel, so sort the pairs together.
+    let yt = spec
+        .encoding
+        .y
+        .ty
+        .or_else(|| table.declared.get(yf).copied())
+        .unwrap_or_else(|| data::infer_type(rows, yf));
+    if yt == FieldType::Ordinal {
+        let mut pairs: Vec<(String, Vec<f64>)> = cats.into_iter().zip(groups).collect();
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+        let (c, g): (Vec<String>, Vec<Vec<f64>>) = pairs.into_iter().unzip();
+        cats = c;
+        groups = g;
+    }
+    let values: Vec<f64> = groups.iter().map(|g| aggregate(g, agg)).collect();
+    if values.iter().any(|v| *v < 0.0) {
+        return Err(Error::Data(
+            "negative values are not yet supported for mark \"bar\"; use mark \"line\"".into(),
+        ));
+    }
+    let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let xscale = Linear::nice_from(0.0, vmax, (plot_w / 10).clamp(2, 7), true);
+
+    let n = cats.len();
+
+    // Content-sized height: one bar row per category, one blank row between →
+    // n*2 - 1. An explicit height is a CEILING (not a target); with none, a
+    // safety cap of 40 rows guards against a runaway ranking.
+    let content = n * 2 - 1;
+    let ceiling = raw_height.unwrap_or(40);
+    if content > ceiling {
+        return Err(Error::Data(format!(
+            "{n} bars need height {content}; filter or aggregate, or raise --height"
+        )));
+    }
+    let plot_h = content;
+
+    // Grouped color was routed away above, so any remaining color channel names
+    // the category (y) field: a categorical tint (one color per bar).
+    let categorical = spec.encoding.color.is_some();
+
+    // Name gutter: right-aligned category names, each truncated to 24 (with a
+    // visible '…'); the gutter is the widest surviving name.
+    let names: Vec<String> = cats.iter().map(|c| truncate(c, 24)).collect();
+    let gutter = names.iter().map(|s| s.chars().count()).max().unwrap_or(1);
+    let cat_scale = Linear::indices(n);
+
+    let title_rows = if spec.title.is_some() { 2 } else { 0 };
+    let columns = gutter + 1 + plot_w;
+    let total_rows = title_rows + plot_h + 2;
+    let top = title_rows;
+
+    let title = spec.title.as_deref().map(|t| {
+        let col = gutter + 1 + plot_w.saturating_sub(t.chars().count()) / 2;
+        Placed {
+            text: t.to_string(),
+            col,
+            row: 0,
+        }
+    });
+
+    // One bar per row, blank row between: category i sits on plot row i*2.
+    let rows_f = plot_h as f64;
+    let mut bars: Vec<Bar> = Vec::new();
+    let mut ticks: Vec<YTick> = Vec::new();
+    for (i, v) in values.iter().enumerate() {
+        let plot_row = i * 2;
+        let color = if categorical {
+            theme.series(i)
+        } else {
+            theme.grad(xscale.norm(*v))
+        };
+        bars.push(Bar {
+            x0: 0.0,
+            y0: plot_row as f64 / rows_f,
+            w: xscale.norm(*v),
+            h: 1.0 / rows_f,
+            color,
+        });
+        ticks.push(YTick {
+            value: i as f64,
+            frac: cat_scale.norm(i as f64),
+            label: names[i].clone(),
+            row: top + plot_row,
+        });
+    }
+
+    let (tick_cols, labels) = value_axis_x(&xscale, plot_w, gutter, columns, top + plot_h + 1);
+
+    Ok(Scene {
+        size: Size {
+            columns,
+            rows: total_rows,
+        },
+        plot: Rect {
+            x: gutter + 1,
+            y: top,
+            w: plot_w,
+            h: plot_h,
+        },
+        chrome: Chrome {
+            axis: theme.axis,
+            title: theme.title,
+        },
+        title,
+        legend: Vec::<LegendEntry>::new(),
+        // The category axis lives on y; its "ticks" are the bar rows, and the
+        // RAW (untruncated) names ride along for the --meta surface.
+        y_axis: YAxis {
+            domain: [cat_scale.min, cat_scale.max],
+            step: cat_scale.step,
+            categories: Some(cats),
+            ticks,
+        },
+        // The value axis lives on x: quantitative, with a numeric domain.
+        x_axis: XAxis {
+            categories: None,
+            domain: Some([xscale.min, xscale.max]),
+            tick_cols,
+            labels,
+        },
+        marks: vec![SceneMark::Bars {
+            bars,
+            direction: BarDirection::Horizontal,
+        }],
+        dropped_rows: dropped,
+        source: Source {
+            mark: Mark::Bar,
+            x_field: xf.clone(),
+            y_field: yf.clone(),
+            aggregate: Some(agg),
+            series_points: groups.iter().map(Vec::len).collect(),
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
             total_rows: table.provenance.total_rows,
@@ -807,35 +1180,26 @@ fn compile_xy(
         });
     }
 
-    // X axis: tick columns (plot-relative) + label anchors, then greedy layout.
+    // X axis: tick columns (plot-relative) + placed labels. Quantitative x
+    // shares the value-axis block with horizontal bars (ONE implementation);
+    // nominal x lays ticks on the category indices.
     let label_row = top + plot_h + 1;
-    let (tick_cols, anchors): (Vec<usize>, Vec<(usize, String)>) = if xt == FieldType::Quantitative
-    {
-        let tks = xscale.ticks();
-        let cols: Vec<usize> = tks
-            .iter()
-            .map(|t| ((xscale.norm(*t) * (plot_w - 1) as f64).round() as usize).min(plot_w - 1))
-            .collect();
-        let anchors = cols
-            .iter()
-            .zip(&tks)
-            .map(|(c, t)| (*c, fmt_tick(*t, xscale.step)))
-            .collect();
-        (cols, anchors)
+    let (tick_cols, labels): (Vec<usize>, Vec<Placed>) = if xt == FieldType::Quantitative {
+        value_axis_x(&xscale, plot_w, gutter, columns, label_row)
     } else {
         let cols: Vec<usize> = (0..x_cats.len())
             .map(|i| {
                 ((xscale.norm(i as f64) * (plot_w - 1) as f64).round() as usize).min(plot_w - 1)
             })
             .collect();
-        let anchors = cols
+        let anchors: Vec<(usize, String)> = cols
             .iter()
             .zip(&x_cats)
             .map(|(c, name)| (*c, truncate(name, 12)))
             .collect();
-        (cols, anchors)
+        let labels = place_x_labels(&anchors, gutter, columns, label_row);
+        (cols, labels)
     };
-    let labels = place_x_labels(&anchors, gutter, columns, label_row);
 
     let (categories, domain) = if xt == FieldType::Quantitative {
         (None, Some([xscale.min, xscale.max]))
@@ -863,6 +1227,7 @@ fn compile_xy(
         y_axis: YAxis {
             domain: [yscale.min, yscale.max],
             step: yscale.step,
+            categories: None,
             ticks,
         },
         x_axis: XAxis {

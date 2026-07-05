@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"cat","type":"STRING"},{"name":"val","type":"STRING"}],"rows":[["a","10"],["b","25"],["c","7"]]},"mark":"bar","encoding":{"x":{"field":"cat"},"y":{"field":"val"}}}

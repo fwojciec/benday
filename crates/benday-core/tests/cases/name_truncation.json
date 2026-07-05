@@ -1,0 +1,1 @@
+{"data":{"values":[{"facility":"Northwestern Memorial Regional Trauma Institute","volume":1340},{"facility":"Cedar Grove","volume":902},{"facility":"Riverside General","volume":615}]},"mark":"bar","encoding":{"x":{"field":"volume"},"y":{"field":"facility"}}}

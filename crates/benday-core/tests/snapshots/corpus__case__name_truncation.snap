@@ -1,0 +1,158 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 97,
+    "rows": 7
+  },
+  "plot": {
+    "x": 25,
+    "y": 0,
+    "w": 72,
+    "h": 5
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      2.0
+    ],
+    "step": 1.0,
+    "categories": [
+      "Northwestern Memorial Regional Trauma Institute",
+      "Cedar Grove",
+      "Riverside General"
+    ],
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "Northwestern Memorial R…",
+        "row": 0
+      },
+      {
+        "value": 1.0,
+        "frac": 0.5,
+        "label": "Cedar Grove",
+        "row": 2
+      },
+      {
+        "value": 2.0,
+        "frac": 1.0,
+        "label": "Riverside General",
+        "row": 4
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      1400.0
+    ],
+    "tick_cols": [
+      0,
+      10,
+      20,
+      30,
+      41,
+      51,
+      61,
+      71
+    ],
+    "labels": [
+      {
+        "text": "0",
+        "col": 25,
+        "row": 6
+      },
+      {
+        "text": "200",
+        "col": 34,
+        "row": 6
+      },
+      {
+        "text": "400",
+        "col": 44,
+        "row": 6
+      },
+      {
+        "text": "600",
+        "col": 54,
+        "row": 6
+      },
+      {
+        "text": "800",
+        "col": 65,
+        "row": 6
+      },
+      {
+        "text": "1000",
+        "col": 74,
+        "row": 6
+      },
+      {
+        "text": "1200",
+        "col": 84,
+        "row": 6
+      },
+      {
+        "text": "1400",
+        "col": 93,
+        "row": 6
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 0.9571428571428572,
+            "h": 0.2,
+            "color": "#ffc44b"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.4,
+            "w": 0.6442857142857142,
+            "h": 0.2,
+            "color": "#9dd16f"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.8,
+            "w": 0.4392857142857143,
+            "h": 0.2,
+            "color": "#4fcf9f"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "volume",
+    "y_field": "facility",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

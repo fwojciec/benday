@@ -1,0 +1,1 @@
+{"data":{"values":[{"dept":"cardiology"},{"dept":"cardiology"},{"dept":"oncology"},{"dept":"cardiology"},{"dept":"neurology"},{"dept":"oncology"}]},"mark":"bar","encoding":{"x":{"field":"n","aggregate":"count"},"y":{"field":"dept"}}}

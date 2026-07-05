@@ -1,0 +1,126 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 75,
+    "rows": 15
+  },
+  "plot": {
+    "x": 3,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      30.0
+    ],
+    "step": 10.0,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0",
+        "row": 12
+      },
+      {
+        "value": 10.0,
+        "frac": 0.3333333333333333,
+        "label": "10",
+        "row": 8
+      },
+      {
+        "value": 20.0,
+        "frac": 0.6666666666666666,
+        "label": "20",
+        "row": 4
+      },
+      {
+        "value": 30.0,
+        "frac": 1.0,
+        "label": "30",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": [
+      "a",
+      "b",
+      "c"
+    ],
+    "domain": null,
+    "tick_cols": [],
+    "labels": [
+      {
+        "text": "a",
+        "col": 15,
+        "row": 14
+      },
+      {
+        "text": "b",
+        "col": 39,
+        "row": 14
+      },
+      {
+        "text": "c",
+        "col": 63,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.05555555555555555,
+            "y0": 0.6666666666666667,
+            "w": 0.2222222222222222,
+            "h": 0.3333333333333333,
+            "color": "#21c9b5"
+          },
+          {
+            "x0": 0.3888888888888889,
+            "y0": 0.16666666666666663,
+            "w": 0.2222222222222222,
+            "h": 0.8333333333333334,
+            "color": "#dccb4d"
+          },
+          {
+            "x0": 0.7222222222222222,
+            "y0": 0.7666666666666666,
+            "w": 0.2222222222222222,
+            "h": 0.23333333333333334,
+            "color": "#00c2c6"
+          }
+        ],
+        "direction": "vertical"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "cat",
+    "y_field": "val",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_columns",
+    "truncated": null,
+    "total_rows": null
+  }
+}

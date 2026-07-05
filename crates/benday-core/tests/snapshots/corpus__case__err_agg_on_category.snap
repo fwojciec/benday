@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): aggregation runs over the quantitative channel, grouped by the categorical one; put `aggregate` on encoding.y

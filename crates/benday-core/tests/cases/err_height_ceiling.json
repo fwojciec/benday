@@ -1,0 +1,1 @@
+{"data":{"values":[{"team":"alpha","points":42},{"team":"bravo","points":37},{"team":"charlie","points":31},{"team":"delta","points":28},{"team":"echo","points":19}]},"mark":"bar","height":6,"encoding":{"x":{"field":"points"},"y":{"field":"team"}}}

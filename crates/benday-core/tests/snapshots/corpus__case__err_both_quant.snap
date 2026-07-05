@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): bar needs one categorical and one quantitative channel; both x ("a") and y ("b") resolved quantitative; put categories on one axis or set an explicit "type"

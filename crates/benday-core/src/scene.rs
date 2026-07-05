@@ -70,6 +70,13 @@ pub struct LegendEntry {
 pub struct YAxis {
     pub domain: [f64; 2],
     pub step: f64,
+    /// Categorical y (horizontal bars): the RAW, untruncated category names in
+    /// axis order — the machine-readable surface for `--meta`, where the
+    /// truncated tick labels would silently corrupt names a caller matches
+    /// back to its rows. None on every quantitative-y path; skipped when None
+    /// so pre-existing scene snapshots stay byte-identical.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub categories: Option<Vec<String>>,
     /// In draw order; rows are distinct by construction. `row` is buffer-absolute.
     pub ticks: Vec<YTick>,
 }
@@ -173,7 +180,39 @@ impl Scene {
         let size = json!({ "columns": self.size.columns, "rows": self.size.rows });
         let mut meta = match self.source.mark {
             Mark::Bar => {
-                let mut base = json!({
+                // Orientation is append-only and conditional: a VERTICAL bar
+                // reports the pre-existing shape byte-identically (no "direction"
+                // key). A HORIZONTAL bar has no x categories (its x is the
+                // quantitative value axis) — that's the detector — so it reports
+                // x as quantitative-with-domain, y as nominal-with-categories,
+                // plus a "direction" key.
+                let mut base = if self.x_axis.categories.is_none() {
+                    // RAW names, not the truncated tick labels: meta is the
+                    // machine-readable surface a caller matches back to rows.
+                    let cats = self
+                        .y_axis
+                        .categories
+                        .as_ref()
+                        .expect("horizontal bar scenes carry raw y categories");
+                    json!({
+                        "mark": "bar",
+                        "direction": "horizontal",
+                        "x": {
+                            "field": self.source.x_field,
+                            "type": "quantitative",
+                            "aggregate": self.source.aggregate,
+                            "domain": self.x_axis.domain,
+                        },
+                        "y": {
+                            "field": self.source.y_field,
+                            "type": "nominal",
+                            "categories": cats,
+                        },
+                        "dropped_rows": self.dropped_rows,
+                        "size": size,
+                    })
+                } else {
+                    json!({
                     "mark": "bar",
                     "x": {
                         "field": self.source.x_field,
@@ -187,7 +226,8 @@ impl Scene {
                     },
                     "dropped_rows": self.dropped_rows,
                     "size": size,
-                });
+                    })
+                };
                 // Grouped bars carry a legend; append the xy-shaped series array
                 // (name/color/cell-count) from the legend entries zipped with the
                 // per-series counts. Plain and tinted bars have no legend and emit
@@ -314,6 +354,7 @@ mod tests {
             y_axis: YAxis {
                 domain: [0.0, 10.0],
                 step: 5.0,
+                categories: None,
                 ticks: vec![
                     YTick {
                         value: 0.0,

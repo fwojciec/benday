@@ -1,0 +1,218 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 97,
+    "rows": 15
+  },
+  "plot": {
+    "x": 25,
+    "y": 0,
+    "w": 72,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      6.0
+    ],
+    "step": 1.0,
+    "categories": [
+      "St. Mary's Regional Medical Center",
+      "Cedar Grove Community Hospital",
+      "Riverside General",
+      "Lakeshore Memorial",
+      "Pinecrest Health System",
+      "Fairview Medical",
+      "Oak Ridge Clinic"
+    ],
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "St. Mary's Regional Med…",
+        "row": 0
+      },
+      {
+        "value": 1.0,
+        "frac": 0.16666666666666666,
+        "label": "Cedar Grove Community H…",
+        "row": 2
+      },
+      {
+        "value": 2.0,
+        "frac": 0.3333333333333333,
+        "label": "Riverside General",
+        "row": 4
+      },
+      {
+        "value": 3.0,
+        "frac": 0.5,
+        "label": "Lakeshore Memorial",
+        "row": 6
+      },
+      {
+        "value": 4.0,
+        "frac": 0.6666666666666666,
+        "label": "Pinecrest Health System",
+        "row": 8
+      },
+      {
+        "value": 5.0,
+        "frac": 0.8333333333333334,
+        "label": "Fairview Medical",
+        "row": 10
+      },
+      {
+        "value": 6.0,
+        "frac": 1.0,
+        "label": "Oak Ridge Clinic",
+        "row": 12
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      1400.0
+    ],
+    "tick_cols": [
+      0,
+      10,
+      20,
+      30,
+      41,
+      51,
+      61,
+      71
+    ],
+    "labels": [
+      {
+        "text": "0",
+        "col": 25,
+        "row": 14
+      },
+      {
+        "text": "200",
+        "col": 34,
+        "row": 14
+      },
+      {
+        "text": "400",
+        "col": 44,
+        "row": 14
+      },
+      {
+        "text": "600",
+        "col": 54,
+        "row": 14
+      },
+      {
+        "text": "800",
+        "col": 65,
+        "row": 14
+      },
+      {
+        "text": "1000",
+        "col": 74,
+        "row": 14
+      },
+      {
+        "text": "1200",
+        "col": 84,
+        "row": 14
+      },
+      {
+        "text": "1400",
+        "col": 93,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 0.9171428571428571,
+            "h": 0.07692307692307693,
+            "color": "#f4c649"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.15384615384615385,
+            "w": 0.7871428571428571,
+            "h": 0.07692307692307693,
+            "color": "#cdcd53"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.3076923076923077,
+            "w": 0.6764285714285714,
+            "h": 0.07692307692307693,
+            "color": "#a8d168"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.46153846153846156,
+            "w": 0.5757142857142857,
+            "h": 0.07692307692307693,
+            "color": "#84d27f"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.6153846153846154,
+            "w": 0.465,
+            "h": 0.07692307692307693,
+            "color": "#5ad099"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.7692307692307693,
+            "w": 0.38571428571428573,
+            "h": 0.07692307692307693,
+            "color": "#39ccaa"
+          },
+          {
+            "x0": 0.0,
+            "y0": 0.9230769230769231,
+            "w": 0.27714285714285714,
+            "h": 0.07692307692307693,
+            "color": "#00c5bf"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "volume",
+    "y_field": "facility",
+    "aggregate": "sum",
+    "series_points": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

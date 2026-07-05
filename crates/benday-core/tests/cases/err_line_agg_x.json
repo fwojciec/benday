@@ -1,0 +1,1 @@
+{"data":{"values":[{"x":1,"y":2},{"x":2,"y":3}]},"mark":"line","encoding":{"x":{"field":"x","aggregate":"sum"},"y":{"field":"y"}}}

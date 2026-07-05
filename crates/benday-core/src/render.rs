@@ -131,7 +131,10 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_on_x_is_rejected() {
+    fn aggregate_on_categorical_channel_is_rejected() {
+        // A bar aggregate on the CATEGORICAL channel (x here, since m is nominal
+        // and the chart is vertical) is rejected post-orientation: aggregation
+        // runs over the quantitative value channel, so the fix points at y.
         let s = spec(
             r#"{"data":{"values":[{"m":"jan","v":3}]},
                 "mark":"bar",
@@ -139,7 +142,7 @@ mod tests {
         );
         let err = render(&s, None, &opts()).unwrap_err();
         assert_eq!(err.kind(), "spec");
-        assert!(err.to_string().contains("encoding.x"));
+        assert!(err.to_string().contains("put `aggregate` on encoding.y"));
     }
 
     #[test]
