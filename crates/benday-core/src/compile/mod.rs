@@ -13,10 +13,10 @@
 use crate::data;
 use crate::error::Error;
 use crate::ingest::{Row, Table};
-use crate::scale::{fmt_tick, Linear};
+use crate::scale::{bins_auto, bins_maxbins, bins_step, cell_edges, fmt_tick, Linear};
 use crate::scene::{
-    Bar, BarDirection, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size,
-    Source, XAxis, YAxis, YTick,
+    Bar, BarDirection, BinInfo, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef,
+    Size, Source, XAxis, YAxis, YTick,
 };
 use crate::spec::{Aggregate, BinConfig, BinValue, Channel, FieldType, Mark, Spec, TimeUnit};
 use crate::theme::Theme;
@@ -25,7 +25,7 @@ use std::collections::HashMap;
 mod bars;
 mod xy;
 
-use bars::{compile_bar, compile_bar_h};
+use bars::{compile_bar, compile_bar_h, compile_histogram};
 use xy::compile_xy;
 
 // 12 row-intervals divide evenly by 2/3/4/6 for the row-aligned tick search;
@@ -217,9 +217,16 @@ fn validate_bin_config(cfg: &BinConfig) -> Result<(), Error> {
 enum BarRoute {
     Vertical,
     Horizontal,
+    /// A histogram: `bin` is active on a quantitative x. Its own compiler owns
+    /// bin selection, integer-edge tiling, and the edge-ticked value axis.
+    Histogram,
 }
 
 /// Resolve bar orientation. RESOLUTION ORDER IS A HARDENED CONTRACT:
+///   0. An ACTIVE `bin` on x is a HISTOGRAM, routed ahead of every rule below
+///      — in particular the y-count short-circuit (rule 4), which would else
+///      render a count histogram as a nonsense per-value chart. Gated on a
+///      canonically-resolved quantitative x and an aggregated y.
 ///   1. Count-on-both is ill-formed regardless of anything else → error.
 ///   2. x-count makes x THE quantitative value channel (count is intrinsically
 ///      numeric and ignores the field's values, so even a temporal field counts
@@ -247,6 +254,35 @@ fn bar_route(spec: &Spec, table: &Table) -> Result<BarRoute, Error> {
     let yf = &spec.encoding.y.field;
     let x_count = matches!(spec.encoding.x.aggregate, Some(Aggregate::Count));
     let y_count = matches!(spec.encoding.y.aggregate, Some(Aggregate::Count));
+
+    // 0. Histogram: an ACTIVE `bin` on x (true / {} / config, not false) makes
+    // this a histogram — a quantitative×quantitative shape the type pair below
+    // rejects. It routes ahead of EVERY orientation rule, in particular the
+    // y-count short-circuit (rule 4): a count histogram (`y.aggregate = count`)
+    // would otherwise render as a nonsense per-value bar chart. bin+timeUnit and
+    // bin+color were already rejected in preflight, so neither confounds the
+    // gate here; an errant `aggregate` on x is caught in `compile_histogram`.
+    if active_bin(&spec.encoding.x).is_some() {
+        // The type gate uses the CANONICAL precedence chain (spec `type` >
+        // declared > inference), NOT the native rung orientation uses — the
+        // design resolves the binned field's type the standard way. A temporal
+        // x has `timeUnit`, not `bin`; a nominal/ordinal x names the resolved
+        // type, the deciding rung, and the dirty-numeric escape.
+        let xt = resolved_type(&spec.encoding.x, table);
+        match xt {
+            FieldType::Temporal => return Err(bin_temporal_error()),
+            FieldType::Nominal | FieldType::Ordinal => {
+                return Err(bin_not_quantitative_error(spec, table, xf, xt));
+            }
+            FieldType::Quantitative => {}
+        }
+        // A binned x groups many rows into each bar, so y MUST carry an
+        // aggregate: count is the histogram, mean/sum/… ride the same path.
+        if spec.encoding.y.aggregate.is_none() {
+            return Err(bin_y_no_aggregate_error());
+        }
+        return Ok(BarRoute::Histogram);
+    }
 
     // 1. Count-on-both.
     if x_count && y_count {
@@ -524,21 +560,28 @@ fn type_name(t: FieldType) -> &'static str {
     }
 }
 
-/// `timeUnit` on an x that did not resolve temporal: names the resolved type
-/// AND which precedence rung decided it (the design's teaching requirement),
-/// then the two ways to make x temporal.
-fn timeunit_not_temporal_error(spec: &Spec, table: &Table, xf: &str, xt: FieldType) -> Error {
-    let rung = if spec.encoding.x.ty.is_some() {
+/// Which precedence rung decided the x channel's resolved type — named by the
+/// teaching errors for a wrongly-typed binned or `timeUnit` x (spec `type` >
+/// declared column type > inference, the `resolved_type` chain).
+fn deciding_rung(spec: &Spec, table: &Table, xf: &str) -> &'static str {
+    if spec.encoding.x.ty.is_some() {
         "the explicit spec `type`"
     } else if table.declared.contains_key(xf) {
         "the declared column type"
     } else {
         "inference from the data"
-    };
+    }
+}
+
+/// `timeUnit` on an x that did not resolve temporal: names the resolved type
+/// AND which precedence rung decided it (the design's teaching requirement),
+/// then the two ways to make x temporal.
+fn timeunit_not_temporal_error(spec: &Spec, table: &Table, xf: &str, xt: FieldType) -> Error {
     Error::Spec(format!(
-        "`timeUnit` buckets a temporal x, but \"{xf}\" resolved to {} via {rung}; declare the \
+        "`timeUnit` buckets a temporal x, but \"{xf}\" resolved to {} via {}; declare the \
          column DATE/DATETIME/TIMESTAMP/TIME, or set encoding.x.type to \"temporal\"",
-        type_name(xt)
+        type_name(xt),
+        deciding_rung(spec, table, xf)
     ))
 }
 
@@ -685,6 +728,67 @@ fn bin_step_error(step: f64) -> Error {
     ))
 }
 
+// --- Type-dependent `bin` errors (need resolved types / the selected layout,
+// so they live in the compile path, not the spec-shape `validate_bin`).
+
+/// `bin` on a temporal x: binning groups quantitative values; time is bucketed
+/// with `timeUnit`, not `bin`. Points at the fix (design error #2).
+fn bin_temporal_error() -> Error {
+    Error::Spec(
+        "`bin` groups quantitative values, but encoding.x resolved temporal; bucket time with \
+         `timeUnit` (\"day\"/\"month\"/…) instead of `bin`"
+            .into(),
+    )
+}
+
+/// `bin` on an x that resolved nominal/ordinal: names the resolved type, the
+/// deciding precedence rung, and — for a numeric column dirtied into Nominal by
+/// the all-or-nothing inference rule — the `"type": "quantitative"` escape that
+/// bins it (the dirty rows then drop). Design error #3.
+fn bin_not_quantitative_error(spec: &Spec, table: &Table, xf: &str, xt: FieldType) -> Error {
+    Error::Spec(format!(
+        "`bin` needs a quantitative x, but \"{xf}\" resolved to {} via {}; if \"{xf}\" is numeric \
+         with some non-numeric values, set encoding.x.type to \"quantitative\" to bin it (the \
+         dirty rows drop)",
+        type_name(xt),
+        deciding_rung(spec, table, xf)
+    ))
+}
+
+/// A binned x with a raw (un-aggregated) y: each bar spans many rows, so y is
+/// undefined without an aggregate. Names the count shortcut and the general
+/// fix. Design error #4.
+fn bin_y_no_aggregate_error() -> Error {
+    Error::Spec(
+        "binned x groups many rows per bar; add an aggregate to encoding.y \
+         (`\"aggregate\": \"count\"` for a histogram, or mean/sum/… over the binned values)"
+            .into(),
+    )
+}
+
+/// A resolved bin count wider than the plot: whichever knob drove it (`step`
+/// too fine, `maxbins` too high) is named, with the count, the plot width, and
+/// both fixes. Checked AFTER selection, so it also backstops zero-cell-wide
+/// bins (a bin narrower than a column). Design error #10.
+fn bin_overflow_error(n: usize, plot_w: usize, bin: BinValue) -> Error {
+    let fix = match bin {
+        BinValue::Config(BinConfig { step: Some(s), .. }) => {
+            format!(
+                "`step` {s} is too fine — use a larger `step`, or widen the plot with `--width`"
+            )
+        }
+        BinValue::Config(BinConfig {
+            maxbins: Some(m), ..
+        }) => {
+            format!("`maxbins` {m} is too high — lower it, or widen the plot with `--width`")
+        }
+        _ => "use a coarser `step`/`maxbins`, or widen the plot with `--width`".to_string(),
+    };
+    Error::Spec(format!(
+        "`bin` resolved {n} bins but the plot is only {plot_w} columns; {fix}"
+    ))
+}
+
 /// One pass over the rows for ANY bar variant: categories (first-seen) down
 /// one dimension, series (first-seen; one unnamed series when `series_field`
 /// is None) down the other, each cell the raw values awaiting aggregation.
@@ -812,6 +916,7 @@ pub fn compile(spec: &Spec, table: &Table, opts: &CompileOptions) -> Result<Scen
     match spec.mark {
         Mark::Bar => match bar_route(spec, table)? {
             BarRoute::Vertical => compile_bar(spec, table, opts, plot_w, plot_h),
+            BarRoute::Histogram => compile_histogram(spec, table, opts, plot_w, plot_h),
             // Horizontal bars are content-sized: their height is derived from the
             // category count, not `plot_dims` (which collapses "no height" into
             // the default 13 and so can't tell an explicit 13 from the default).
@@ -930,4 +1035,74 @@ fn place_x_labels(
         next_free = start + len + 1;
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ingest;
+    use crate::theme;
+
+    fn compile_spec(json: &str) -> Scene {
+        let spec: Spec = serde_json::from_str(json).expect("spec parses");
+        let table = ingest::resolve(&spec, None).expect("resolves");
+        let opts = CompileOptions {
+            width: None,
+            height: None,
+            theme: theme::by_name("benday").unwrap(),
+        };
+        compile(&spec, &table, &opts).expect("compiles")
+    }
+
+    /// `bin: false` is Vega-Lite noise meaning "no binning"; it must compile
+    /// byte-for-byte identically to omitting `bin` entirely — the same plain
+    /// bar spec with and without the flag yields the same Scene JSON. Pins the
+    /// `active_bin` Flag(false)→None collapse end-to-end.
+    #[test]
+    fn bin_false_is_identical_to_absent() {
+        let absent = compile_spec(
+            r#"{"data":{"values":[{"cat":"a","v":3},{"cat":"b","v":5},{"cat":"c","v":2}]},
+                "mark":"bar","encoding":{"x":{"field":"cat"},"y":{"field":"v"}}}"#,
+        );
+        let bin_false = compile_spec(
+            r#"{"data":{"values":[{"cat":"a","v":3},{"cat":"b","v":5},{"cat":"c","v":2}]},
+                "mark":"bar","encoding":{"x":{"field":"cat","bin":false},"y":{"field":"v"}}}"#,
+        );
+        assert_eq!(
+            absent.to_json(),
+            bin_false.to_json(),
+            "`bin: false` must compile identically to an absent bin"
+        );
+    }
+
+    /// The corpus harness snapshots `to_json()` and never calls `meta()`, so
+    /// pin the HISTOGRAM meta shape here: the x block carries a `bin` object
+    /// with step / domain / bins, y reports its aggregate, and a histogram
+    /// OMITS the `direction` key (vertical is the unmarked case). Bridges to
+    /// the gallery meta snapshots landing in task 5.
+    #[test]
+    fn histogram_meta_reports_bin_layout() {
+        let scene = compile_spec(
+            r#"{"data":{"values":[{"v":1},{"v":2},{"v":3},{"v":42},{"v":55},{"v":97}]},
+                "mark":"bar","encoding":{"x":{"field":"v","bin":true},
+                                         "y":{"field":"v","aggregate":"count"}}}"#,
+        );
+        let meta = scene.meta();
+        assert_eq!(meta["mark"], "bar");
+        let x = &meta["x"];
+        assert_eq!(x["field"], "v");
+        assert_eq!(x["type"], "quantitative");
+        let bin = &x["bin"];
+        assert!(bin["step"].is_number(), "bin.step is a number: {bin}");
+        assert!(bin["bins"].is_number(), "bin.bins is a number: {bin}");
+        assert!(
+            bin["domain"].as_array().is_some_and(|d| d.len() == 2),
+            "bin.domain is a [lo, hi] pair: {bin}"
+        );
+        assert_eq!(meta["y"]["aggregate"], "count");
+        assert!(
+            meta.get("direction").is_none(),
+            "a histogram omits the direction key: {meta}"
+        );
+    }
 }

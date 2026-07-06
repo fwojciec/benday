@@ -94,7 +94,11 @@ pub struct XAxis {
     /// Nominal x: resolved category order. Quantitative: None.
     pub categories: Option<Vec<String>>,
     pub domain: Option<[f64; 2]>,
-    /// Columns (plot-relative) that get a '┴' glyph. Empty for bars.
+    /// Columns (plot-relative) that get a '┴' glyph. Empty on a categorical x
+    /// (nominal / timeUnit vertical bars); populated on a quantitative value
+    /// axis (horizontal bars, xy marks) and on a histogram's binned x — a
+    /// tick per left cell edge, the right domain edge left tickless (design
+    /// §Axis: column `plot_w` is unrepresentable).
     pub tick_cols: Vec<usize>,
     /// Labels that survived greedy placement; `col` is the buffer-absolute
     /// start column. Dropped labels simply don't appear — visible in diffs.
@@ -169,6 +173,12 @@ pub struct Source {
     /// categories); skipped when None so every other snapshot stays identical.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_unit: Option<TimeUnit>,
+    /// The resolved bin layout of a histogram's x, `Some` ONLY on that path.
+    /// `meta()` reports it in the x block (step / domain / bin count) so an
+    /// agent can verify how the values were binned; skipped when None so every
+    /// non-histogram snapshot stays byte-identical.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bin: Option<BinInfo>,
     /// Points-per-series counts etc. needed to reproduce --meta exactly.
     pub series_points: Vec<usize>,
     /// Data provenance (from `Table::provenance`). Drives the conditional
@@ -177,6 +187,16 @@ pub struct Source {
     pub data_source: DataSource,
     pub truncated: Option<bool>,
     pub total_rows: Option<u64>,
+}
+
+/// A histogram's resolved bin layout, carried on `Source` for `--meta`: the bin
+/// width (`step`), the snapped `[lo, hi]` `domain`, and the bin count (`bins`).
+/// Enough for an agent to confirm the chart binned as it intended.
+#[derive(Serialize)]
+pub struct BinInfo {
+    pub step: f64,
+    pub domain: [f64; 2],
+    pub bins: usize,
 }
 
 impl Scene {
@@ -260,7 +280,36 @@ impl Scene {
                         "size": size,
                         })
                     }
-                    BarDirection::Vertical => unreachable!("histogram meta lands in task 4"),
+                    BarDirection::Vertical => {
+                        // Histogram: a vertical bar over a binned quantitative x
+                        // (categories None). Reports the bin layout so an agent
+                        // can verify the binning; no "direction" key — vertical
+                        // stays the unmarked case.
+                        let bin = self
+                            .source
+                            .bin
+                            .as_ref()
+                            .expect("histogram scenes carry a bin layout");
+                        json!({
+                            "mark": "bar",
+                            "x": {
+                                "field": self.source.x_field,
+                                "type": "quantitative",
+                                "bin": {
+                                    "step": bin.step,
+                                    "domain": bin.domain,
+                                    "bins": bin.bins,
+                                },
+                            },
+                            "y": {
+                                "field": self.source.y_field,
+                                "aggregate": self.source.aggregate,
+                                "domain": self.y_axis.domain,
+                            },
+                            "dropped_rows": self.dropped_rows,
+                            "size": size,
+                        })
+                    }
                 };
                 // Grouped bars carry a legend; append the xy-shaped series array
                 // (name/color/cell-count) from the legend entries zipped with the
@@ -452,6 +501,7 @@ mod tests {
                 aggregate: None,
                 x_type: None,
                 time_unit: None,
+                bin: None,
                 series_points: vec![2],
                 data_source: DataSource::InlineValues,
                 truncated: None,

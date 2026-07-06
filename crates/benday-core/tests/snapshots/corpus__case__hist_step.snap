@@ -1,0 +1,216 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+{
+  "size": {
+    "columns": 24,
+    "rows": 15
+  },
+  "plot": {
+    "x": 4,
+    "y": 0,
+    "w": 20,
+    "h": 13
+  },
+  "chrome": {
+    "axis": "#6a707a",
+    "title": "#dee2e8"
+  },
+  "title": null,
+  "legend": [],
+  "y_axis": {
+    "domain": [
+      0.0,
+      2.0
+    ],
+    "step": 0.5,
+    "ticks": [
+      {
+        "value": 0.0,
+        "frac": 0.0,
+        "label": "0.0",
+        "row": 12
+      },
+      {
+        "value": 0.5,
+        "frac": 0.25,
+        "label": "0.5",
+        "row": 9
+      },
+      {
+        "value": 1.0,
+        "frac": 0.5,
+        "label": "1.0",
+        "row": 6
+      },
+      {
+        "value": 1.5,
+        "frac": 0.75,
+        "label": "1.5",
+        "row": 3
+      },
+      {
+        "value": 2.0,
+        "frac": 1.0,
+        "label": "2.0",
+        "row": 0
+      }
+    ]
+  },
+  "x_axis": {
+    "categories": null,
+    "domain": [
+      0.0,
+      100.0
+    ],
+    "tick_cols": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18
+    ],
+    "labels": [
+      {
+        "text": "0",
+        "col": 4,
+        "row": 14
+      },
+      {
+        "text": "20",
+        "col": 7,
+        "row": 14
+      },
+      {
+        "text": "40",
+        "col": 11,
+        "row": 14
+      },
+      {
+        "text": "60",
+        "col": 15,
+        "row": 14
+      },
+      {
+        "text": "80",
+        "col": 19,
+        "row": 14
+      }
+    ]
+  },
+  "marks": [
+    {
+      "Bars": {
+        "bars": [
+          {
+            "x0": 0.0,
+            "y0": 0.0,
+            "w": 0.1,
+            "h": 1.0,
+            "color": "#ffc151"
+          },
+          {
+            "x0": 0.1,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.2,
+            "y0": 0.0,
+            "w": 0.1,
+            "h": 1.0,
+            "color": "#ffc151"
+          },
+          {
+            "x0": 0.3,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.4,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.5,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.6,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.7,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.8,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          },
+          {
+            "x0": 0.9,
+            "y0": 0.5,
+            "w": 0.1,
+            "h": 0.5,
+            "color": "#67d191"
+          }
+        ],
+        "direction": "vertical"
+      }
+    }
+  ],
+  "dropped_rows": 0,
+  "source": {
+    "mark": "bar",
+    "x_field": "v",
+    "y_field": "v",
+    "aggregate": "count",
+    "bin": {
+      "step": 10.0,
+      "domain": [
+        0.0,
+        100.0
+      ],
+      "bins": 10
+    },
+    "series_points": [
+      2,
+      1,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "data_source": "inline_values",
+    "truncated": null,
+    "total_rows": null
+  }
+}

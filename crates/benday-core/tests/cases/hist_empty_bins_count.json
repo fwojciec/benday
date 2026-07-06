@@ -1,0 +1,1 @@
+{"data":{"values":[{"latency_ms":1},{"latency_ms":2},{"latency_ms":3},{"latency_ms":4},{"latency_ms":5},{"latency_ms":95},{"latency_ms":96},{"latency_ms":97},{"latency_ms":98}]},"mark":"bar","encoding":{"x":{"field":"latency_ms","bin":true},"y":{"field":"latency_ms","aggregate":"count"}}}

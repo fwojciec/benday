@@ -1,0 +1,1 @@
+{"data":{"values":[{"payload_size":3},{"payload_size":12},{"payload_size":25},{"payload_size":33},{"payload_size":44},{"payload_size":55},{"payload_size":61},{"payload_size":68},{"payload_size":77},{"payload_size":88},{"payload_size":97}]},"mark":"bar","encoding":{"x":{"field":"payload_size","bin":{"maxbins":5}},"y":{"field":"payload_size","aggregate":"count"}}}

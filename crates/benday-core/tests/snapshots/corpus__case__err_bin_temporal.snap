@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` groups quantitative values, but encoding.x resolved temporal; bucket time with `timeUnit` ("day"/"month"/…) instead of `bin`

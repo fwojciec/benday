@@ -1,0 +1,1 @@
+{"data":{"values":[{"v":0},{"v":100}]},"mark":"bar","encoding":{"x":{"field":"v","bin":{"step":1}},"y":{"field":"v","aggregate":"count"}}}

@@ -1,0 +1,1 @@
+{"data":{"columns":[{"name":"v","type":"INT64"}],"rows":[[12],[18],[25],[33],["oops"],[41],[48],[52]]},"mark":"bar","encoding":{"x":{"field":"v","bin":true},"y":{"field":"v","aggregate":"count"}}}

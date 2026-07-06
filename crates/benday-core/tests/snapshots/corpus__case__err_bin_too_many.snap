@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` resolved 100 bins but the plot is only 72 columns; `step` 1 is too fine — use a larger `step`, or widen the plot with `--width`

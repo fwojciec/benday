@@ -137,12 +137,11 @@ fn next_nice(step: f64) -> f64 {
     }
 }
 
-// Bin selection is the pure-math foundation for histograms; the compile path
-// wires it in a later task, so it is unreachable within the crate until then.
+// Bin selection is the pure-math foundation for histograms, wired into the
+// compile path by `compile_histogram`.
 /// A resolved bin layout: `n` bins of width `step` from `lo`.
 /// Every edge is `lo + k*step`; edges are nice numbers unless the
 /// caller forced `step`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct Bins {
     pub lo: f64,
@@ -150,7 +149,6 @@ pub struct Bins {
     pub n: usize,
 }
 
-#[allow(dead_code)]
 impl Bins {
     pub fn hi(&self) -> f64 {
         self.lo + self.step * self.n as f64
@@ -175,7 +173,6 @@ impl Bins {
 /// Snap `[min, max]` outward to whole multiples of `step` and count the bins.
 /// `n` is clamped to at least 1: a non-finite input slips past the guards
 /// (NaN casts to 0), and n = 0 would underflow `index()`'s `n - 1` in release.
-#[allow(dead_code)]
 fn expand(min: f64, max: f64, step: f64) -> Bins {
     let lo = (min / step).floor() * step;
     let hi = (max / step).ceil() * step;
@@ -190,7 +187,6 @@ fn expand(min: f64, max: f64, step: f64) -> Bins {
 /// the data splits into roughly `target` bins, then snap the domain to nice
 /// edges. Rounding the step UP keeps the count at or under `target` before the
 /// snap, so the final count stays within a bin or two of `target`.
-#[allow(dead_code)]
 pub fn bins_auto(min: f64, mut max: f64, target: usize) -> Bins {
     debug_assert!(target >= 1);
     debug_assert!(min <= max);
@@ -203,7 +199,6 @@ pub fn bins_auto(min: f64, mut max: f64, target: usize) -> Bins {
 /// Like `bins_auto` with `target = n`, then coarsen up the ladder until the
 /// count fits under `n`. A domain straddling zero can never fall below two
 /// bins — one on each side — so it stops there instead of looping forever.
-#[allow(dead_code)]
 pub fn bins_maxbins(min: f64, mut max: f64, n: usize) -> Bins {
     debug_assert!(n >= 1);
     debug_assert!(min <= max);
@@ -224,7 +219,6 @@ pub fn bins_maxbins(min: f64, mut max: f64, n: usize) -> Bins {
 
 /// Bins of the caller's exact width, the domain floored/ceiled to `step`
 /// multiples so every edge is a multiple of `step`.
-#[allow(dead_code)]
 pub fn bins_step(min: f64, mut max: f64, step: f64) -> Bins {
     debug_assert!(step > 0.0);
     debug_assert!(min <= max);
@@ -238,7 +232,6 @@ pub fn bins_step(min: f64, mut max: f64, step: f64) -> Bins {
 /// `round(k/n * plot_w)`. Rounding the shared edges — not each bar's origin
 /// and width independently — is what makes adjacent bars tile with no gap or
 /// overrun.
-#[allow(dead_code)]
 pub fn cell_edges(n: usize, plot_w: usize) -> Vec<usize> {
     debug_assert!(n >= 1);
     (0..=n)

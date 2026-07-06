@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): binned x groups many rows per bar; add an aggregate to encoding.y (`"aggregate": "count"` for a histogram, or mean/sum/… over the binned values)

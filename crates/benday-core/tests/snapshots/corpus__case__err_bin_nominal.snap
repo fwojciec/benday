@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` needs a quantitative x, but "v" resolved to nominal via inference from the data; if "v" is numeric with some non-numeric values, set encoding.x.type to "quantitative" to bin it (the dirty rows drop)

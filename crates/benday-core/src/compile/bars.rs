@@ -265,6 +265,216 @@ pub(super) fn compile_bar(
             aggregate: Some(agg),
             x_type: None,
             time_unit,
+            bin: None,
+            series_points,
+            data_source: table.provenance.source,
+            truncated: table.provenance.truncated,
+            total_rows: table.provenance.total_rows,
+        },
+    })
+}
+
+/// A HISTOGRAM: an active `bin` on a quantitative x, drawn as contiguous
+/// vertical bars over a linear, edge-ticked value axis. Selection reuses the
+/// bin primitives; contiguity is computed in INTEGER CELL edges so the
+/// rasterizer's own independent rounding recovers a gapless tiling (design
+/// §Geometry) with zero rasterizer changes. Bins are DENSE over [lo, hi] —
+/// every bin exists; an empty one is a zero bar under `count`, a stable gap
+/// under any other aggregate (the timeUnit densify rule, reused not forked).
+pub(super) fn compile_histogram(
+    spec: &Spec,
+    table: &Table,
+    opts: &CompileOptions,
+    plot_w: usize,
+    plot_h: usize,
+) -> Result<Scene, Error> {
+    let rows = &table.rows;
+    let xf = &spec.encoding.x.field;
+    let yf = &spec.encoding.y.field;
+    // bar_route proved y carries an aggregate; that IS the histogram aggregate.
+    let agg = spec
+        .encoding
+        .y
+        .aggregate
+        .expect("histogram route implies an aggregated y");
+    let theme = &opts.theme;
+
+    // Aggregate placement: x is the BINNED channel, so an aggregate there is
+    // misplaced — aggregation runs over y, grouped by the bins. Mirrors the
+    // vertical-bar guard; the field is reported, never silently ignored.
+    if spec.encoding.x.aggregate.is_some() {
+        return Err(bar_aggregate_error("y"));
+    }
+
+    // Scan: x through `data::num` — a non-numeric value DROPS. This is legal
+    // ONLY because routing resolved x quantitative by EXPLICIT spec type or
+    // DECLARED column type; an INFERRED quantitative is all-numeric by the
+    // all-or-nothing `infer_type` rule, so nothing drops on that path (invariant
+    // asserted by construction, not at runtime). y is the existing bar value
+    // scan: count → 1.0, else num(y). A dropped row extends no domain — min/max
+    // track usable rows only.
+    let mut pairs: Vec<(f64, f64)> = Vec::new();
+    let mut dropped = 0usize;
+    let (mut min, mut max) = (f64::INFINITY, f64::NEG_INFINITY);
+    for row in rows {
+        let Some(xn) = row.get(xf).and_then(data::num) else {
+            dropped += 1;
+            continue;
+        };
+        let yn = if agg == Aggregate::Count {
+            Some(1.0)
+        } else {
+            row.get(yf).and_then(data::num)
+        };
+        let Some(yn) = yn else {
+            dropped += 1;
+            continue;
+        };
+        min = min.min(xn);
+        max = max.max(xn);
+        pairs.push((xn, yn));
+    }
+    if pairs.is_empty() {
+        return Err(no_rows_error(yf, xf));
+    }
+
+    // Select bins per the knob. Degenerate spans (all values equal, one row)
+    // are guarded inside each selector (min..min+1), so a single distinct value
+    // bins without dividing by zero — every value lands in one bin. `target`
+    // is the design's plot-relative default.
+    let bin = active_bin(&spec.encoding.x).expect("histogram route implies an active x bin");
+    let target = (plot_w / 4).clamp(5, 20);
+    let bins = match bin {
+        BinValue::Config(BinConfig {
+            maxbins: Some(m), ..
+        }) => bins_maxbins(min, max, m as usize),
+        BinValue::Config(BinConfig { step: Some(s), .. }) => bins_step(min, max, s),
+        // `true` / `{}` (and the unreachable `false`) → automatic binning.
+        _ => bins_auto(min, max, target),
+    };
+    // Checked AFTER selection: a bin count over the plot width would draw
+    // sub-column garbage, and this also backstops zero-cell-wide bins. Names
+    // whichever knob drove the count.
+    if bins.n > plot_w {
+        return Err(bin_overflow_error(bins.n, plot_w, bin));
+    }
+
+    // Dense cells: one (unnamed) series per bin; push each row's y into its
+    // bin. Every bin exists by construction, so `aggregate_cells` with the
+    // densified flag reads an empty bin as a zero under `count` and a gap under
+    // any other aggregate — the SAME rule the timeUnit densify path uses.
+    let mut cells: Vec<Vec<Vec<f64>>> = vec![vec![Vec::new()]; bins.n];
+    for &(xn, yn) in &pairs {
+        cells[bins.index(xn)][0].push(yn);
+    }
+    let series_points: Vec<usize> = cells.iter().map(|r| r[0].len()).collect();
+    let (agg_cells, vmax) = aggregate_cells(&cells, agg, true)?;
+    let y = Linear::row_aligned(0.0, vmax, plot_h.clamp(3, 6), plot_h, true);
+
+    // --- Layout (title, gutter, columns) — identical to plain bars.
+    let gutter = tick_gutter(&y);
+    let columns = gutter + 1 + plot_w;
+    let (title, title_rows) = place_title(spec, gutter, plot_w);
+    let total_rows = title_rows + plot_h + 2;
+    let top = title_rows;
+
+    let ticks = y_ticks(&y, plot_h, top);
+
+    // Rects tile the plot in INTEGER cells: round the shared edges first, store
+    // each bar's x0/w as those integers over plot_w; the rasterizer's own
+    // rounding recovers them exactly, so bars touch with no gap or overlap. A
+    // `None` cell (a gap under a non-count aggregate) emits no rect but keeps
+    // its edge tick — a stable hole in the silhouette.
+    let edges = cell_edges(bins.n, plot_w);
+    let mut bars: Vec<Bar> = Vec::new();
+    for (i, cell) in agg_cells.iter().enumerate() {
+        if let Some(v) = cell[0] {
+            bars.push(Bar {
+                x0: edges[i] as f64 / plot_w as f64,
+                y0: 1.0 - y.norm(v),
+                w: (edges[i + 1] - edges[i]) as f64 / plot_w as f64,
+                h: y.norm(v),
+                color: theme.grad(y.norm(v)),
+            });
+        }
+    }
+
+    // Axis: a linear value axis over [lo, hi]. Tick GLYPHS sit at the left cell
+    // edge of every bin (`edges[0..n]`, all < plot_w); the right domain edge
+    // (column plot_w) is unrepresentable as a glyph (design §Axis). LABELS thin
+    // greedily while the ticks stay: each interior edge value anchored at its
+    // edge column, then the right domain edge (hi) as a right-aligned label at
+    // the buffer end, dropped only if it would collide with the last survivor.
+    let lo = bins.lo;
+    let hi = bins.hi();
+    let tick_cols: Vec<usize> = edges[..bins.n].to_vec();
+    let anchors: Vec<(usize, String)> = (0..bins.n)
+        .map(|k| (edges[k], fmt_tick(lo + k as f64 * bins.step, bins.step)))
+        .collect();
+    let label_row = top + plot_h + 1;
+    let mut labels = place_x_labels(&anchors, gutter, columns, label_row);
+    let hi_label = fmt_tick(hi, bins.step);
+    let hi_len = hi_label.chars().count();
+    if hi_len <= columns {
+        let start = columns - hi_len;
+        let next_free = labels
+            .last()
+            .map_or(0, |l| l.col + l.text.chars().count() + 1);
+        if start >= next_free {
+            labels.push(Placed {
+                text: hi_label,
+                col: start,
+                row: label_row,
+            });
+        }
+    }
+
+    Ok(Scene {
+        size: Size {
+            columns,
+            rows: total_rows,
+        },
+        plot: Rect {
+            x: gutter + 1,
+            y: top,
+            w: plot_w,
+            h: plot_h,
+        },
+        chrome: Chrome {
+            axis: theme.axis,
+            title: theme.title,
+        },
+        title,
+        legend: Vec::<LegendEntry>::new(),
+        y_axis: YAxis {
+            domain: [y.min, y.max],
+            step: y.step,
+            categories: None,
+            ticks,
+        },
+        x_axis: XAxis {
+            categories: None,
+            domain: Some([lo, hi]),
+            tick_cols,
+            labels,
+        },
+        marks: vec![SceneMark::Bars {
+            bars,
+            direction: BarDirection::Vertical,
+        }],
+        dropped_rows: dropped,
+        source: Source {
+            mark: Mark::Bar,
+            x_field: xf.clone(),
+            y_field: yf.clone(),
+            aggregate: Some(agg),
+            x_type: None,
+            time_unit: None,
+            bin: Some(BinInfo {
+                step: bins.step,
+                domain: [lo, hi],
+                bins: bins.n,
+            }),
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
@@ -430,6 +640,7 @@ fn compile_bar_grouped(
             aggregate: Some(agg),
             x_type: None,
             time_unit: None,
+            bin: None,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
@@ -590,6 +801,7 @@ pub(super) fn compile_bar_h(
             aggregate: Some(agg),
             x_type: None,
             time_unit: None,
+            bin: None,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,
@@ -758,6 +970,7 @@ fn compile_bar_h_grouped(
             aggregate: Some(agg),
             x_type: None,
             time_unit: None,
+            bin: None,
             series_points,
             data_source: table.provenance.source,
             truncated: table.provenance.truncated,

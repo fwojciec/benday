@@ -1,0 +1,1 @@
+{"width":20,"data":{"values":[{"v":5},{"v":8},{"v":15},{"v":23},{"v":25},{"v":34},{"v":45},{"v":55},{"v":63},{"v":72},{"v":84},{"v":95}]},"mark":"bar","encoding":{"x":{"field":"v","bin":{"step":10}},"y":{"field":"v","aggregate":"count"}}}

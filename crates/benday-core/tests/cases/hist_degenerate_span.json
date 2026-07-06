@@ -1,0 +1,1 @@
+{"data":{"values":[{"v":42},{"v":42},{"v":42}]},"mark":"bar","encoding":{"x":{"field":"v","bin":true},"y":{"field":"v","aggregate":"count"}}}
