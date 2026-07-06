@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): a binned x cannot be split into series by `color` ("host"); overlaid histograms are out this cycle — drop `color`, or pre-filter to a single series

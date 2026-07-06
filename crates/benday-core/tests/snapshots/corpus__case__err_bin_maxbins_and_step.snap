@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` cannot set both `maxbins` and `step` — they fight over the bin width; pick one

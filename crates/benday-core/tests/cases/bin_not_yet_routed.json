@@ -1,0 +1,1 @@
+{"data":{"values":[{"size_bytes":12,"latency_ms":100},{"size_bytes":45,"latency_ms":200},{"size_bytes":7,"latency_ms":50},{"size_bytes":88,"latency_ms":300},{"size_bytes":23,"latency_ms":150}]},"mark":"bar","encoding":{"x":{"field":"size_bytes","bin":true},"y":{"field":"latency_ms","aggregate":"mean"}}}

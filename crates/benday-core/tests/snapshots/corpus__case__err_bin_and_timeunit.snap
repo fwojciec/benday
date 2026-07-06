@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` and `timeUnit` cannot both apply to encoding.x — one transform per channel; `bin` groups quantitative values and `timeUnit` buckets time, so pick one

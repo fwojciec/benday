@@ -18,7 +18,7 @@ use crate::scene::{
     Bar, BarDirection, Chrome, LegendEntry, Placed, Rect, Scene, SceneMark, SeriesRef, Size,
     Source, XAxis, YAxis, YTick,
 };
-use crate::spec::{Aggregate, Channel, FieldType, Mark, Spec, TimeUnit};
+use crate::spec::{Aggregate, BinConfig, BinValue, Channel, FieldType, Mark, Spec, TimeUnit};
 use crate::theme::Theme;
 use std::collections::HashMap;
 
@@ -143,7 +143,73 @@ fn validate(spec: &Spec) -> Result<(), Error> {
     if spec.encoding.x.time_unit.is_some() && spec.mark != Mark::Bar {
         return Err(timeunit_mark_error(spec.mark));
     }
+    validate_bin(spec)?;
     Ok(())
+}
+
+/// The active `bin` on a channel, or `None` when absent OR `false`. `bin: false`
+/// is Vega-Lite noise that means "no binning", so it is treated as absent and
+/// trips no placement rule (design §spec semantics). `true`, `{}`, and
+/// `{maxbins|step}` are all active.
+fn active_bin(ch: &Channel) -> Option<BinValue> {
+    match ch.bin {
+        Some(BinValue::Flag(false)) | None => None,
+        Some(b) => Some(b),
+    }
+}
+
+/// Pure spec-shape `bin` validation: placement (which channel) then, for the
+/// only supported placement (x on a bar), the knob shape. The TYPE-dependent
+/// bin errors — non-quantitative x, a raw y with no aggregate, a resolved bin
+/// count over the plot width — need resolved types and live in the compile
+/// path, not here. Placement is checked before shape so a mis-placed bin names
+/// the channel, never an incidental bad knob.
+fn validate_bin(spec: &Spec) -> Result<(), Error> {
+    if active_bin(&spec.encoding.y).is_some() {
+        return Err(bin_on_y_error());
+    }
+    if spec
+        .encoding
+        .color
+        .as_ref()
+        .is_some_and(|c| active_bin(c).is_some())
+    {
+        return Err(bin_on_color_error());
+    }
+    let Some(bin) = active_bin(&spec.encoding.x) else {
+        return Ok(());
+    };
+    // `bin` is on x, the only supported channel. Structural conflicts first,
+    // deterministic order: non-bar mark, then a competing `timeUnit`, then a
+    // series-splitting `color` (any color is a split — tint-on-bins is undefined
+    // and benday never silently ignores a channel).
+    if spec.mark != Mark::Bar {
+        return Err(bin_mark_error(spec.mark));
+    }
+    if spec.encoding.x.time_unit.is_some() {
+        return Err(bin_timeunit_error());
+    }
+    if let Some(c) = &spec.encoding.color {
+        return Err(bin_color_series_error(&c.field));
+    }
+    // Knob shape: only the object form carries knobs. `true`/`{}` are automatic.
+    if let BinValue::Config(cfg) = bin {
+        validate_bin_config(&cfg)?;
+    }
+    Ok(())
+}
+
+/// The `bin` object's knob shape. `maxbins` and `step` fight; each alone must be
+/// well-formed so the selection primitives (which call `log10` unguarded) never
+/// see a non-positive or non-finite input. `{}` (neither knob) is automatic
+/// binning, `bin: true` parity.
+fn validate_bin_config(cfg: &BinConfig) -> Result<(), Error> {
+    match (cfg.maxbins, cfg.step) {
+        (Some(_), Some(_)) => Err(bin_maxbins_and_step_error()),
+        (Some(m), None) if m < 1.0 || m.fract() != 0.0 => Err(bin_maxbins_error(m)),
+        (None, Some(s)) if !(s.is_finite() && s > 0.0) => Err(bin_step_error(s)),
+        _ => Ok(()),
+    }
 }
 
 /// Which way a bar chart runs. Resolved once, up front, from the count rule and
@@ -550,6 +616,72 @@ fn timeunit_grouped_error(color_field: &str) -> Error {
     Error::Spec(format!(
         "`timeUnit` bars do not support a grouping `color` (\"{color_field}\") yet; \
          drop `color`, or drop `timeUnit`"
+    ))
+}
+
+// --- `bin` errors (spec-shape). `bin` is bar-only and x-only this cycle; the
+// type-dependent bin errors (non-quantitative x, y without an aggregate, a
+// resolved bin count over the plot) live in the compile path.
+
+/// `bin` on the y channel: binning is an x transform, so name the axis swap.
+fn bin_on_y_error() -> Error {
+    Error::Spec(
+        "`bin` is only supported on encoding.x; to bin these values, move the field to \
+         encoding.x and swap the axes"
+            .into(),
+    )
+}
+
+/// `bin` on the color channel: binning is an x transform, not a grouping.
+fn bin_on_color_error() -> Error {
+    Error::Spec("`bin` is only supported on encoding.x; remove it from encoding.color".into())
+}
+
+/// A binned x plus a series-splitting `color`: overlaid histograms cannot
+/// overlap legibly in braille, so they are out this cycle — name both fixes.
+fn bin_color_series_error(color_field: &str) -> Error {
+    Error::Spec(format!(
+        "a binned x cannot be split into series by `color` (\"{color_field}\"); overlaid \
+         histograms are out this cycle — drop `color`, or pre-filter to a single series"
+    ))
+}
+
+/// `bin` on a line/point/area mark: histogram bins are bar-only this cycle.
+fn bin_mark_error(mark: Mark) -> Error {
+    Error::Spec(format!(
+        "`bin` draws histogram bars and is only supported on mark \"bar\"; mark {mark:?} cannot \
+         bin — switch to `bar`, or drop `bin`"
+    ))
+}
+
+/// `bin` and `timeUnit` on the same x channel: two transforms, one channel.
+fn bin_timeunit_error() -> Error {
+    Error::Spec(
+        "`bin` and `timeUnit` cannot both apply to encoding.x — one transform per channel; \
+         `bin` groups quantitative values and `timeUnit` buckets time, so pick one"
+            .into(),
+    )
+}
+
+/// `bin` with both `maxbins` and `step`: the two knobs fight over bin width.
+fn bin_maxbins_and_step_error() -> Error {
+    Error::Spec(
+        "`bin` cannot set both `maxbins` and `step` — they fight over the bin width; pick one"
+            .into(),
+    )
+}
+
+/// `bin` `maxbins` that is not a positive integer.
+fn bin_maxbins_error(maxbins: f64) -> Error {
+    Error::Spec(format!(
+        "`bin` `maxbins` must be a positive integer; got {maxbins}"
+    ))
+}
+
+/// `bin` `step` that is not a finite positive number.
+fn bin_step_error(step: f64) -> Error {
+    Error::Spec(format!(
+        "`bin` `step` must be a finite positive number; got {step}"
     ))
 }
 

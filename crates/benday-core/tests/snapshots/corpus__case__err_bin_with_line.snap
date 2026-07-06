@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` draws histogram bars and is only supported on mark "bar"; mark Line cannot bin — switch to `bar`, or drop `bin`

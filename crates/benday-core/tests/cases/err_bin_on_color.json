@@ -1,0 +1,1 @@
+{"data":{"values":[{"cat":"a","v":3,"g":"x"}]},"mark":"bar","encoding":{"x":{"field":"cat"},"y":{"field":"v"},"color":{"field":"g","bin":true}}}

@@ -1,0 +1,5 @@
+---
+source: crates/benday-core/tests/corpus.rs
+expression: snapshot
+---
+ERROR (spec): `bin` is only supported on encoding.x; to bin these values, move the field to encoding.x and swap the axes
