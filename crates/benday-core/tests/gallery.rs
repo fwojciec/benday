@@ -371,3 +371,115 @@ fn temporal_family_gallery() {
     );
     snap("temporal_bar_month_sum", &month, &opts(72, 8));
 }
+
+/// Histograms: a quantitative `x` with `bin` renders as contiguous rects on a
+/// linear, edge-ticked value axis. Every case pins an explicit size — the axis
+/// idiom is width-dependent, so the width is load-bearing. These are also the
+/// FIRST gallery snapshots of the histogram `meta` arm (task 4 pinned it in a
+/// unit test); the bundled meta carries the `bin` block (step / domain / bins).
+///
+/// The axis rules under test on every rendered row:
+/// - Tick glyphs (`┴`) sit at the LEFT cell edge of each bin, `k = 0..n-1`; the
+///   right domain edge (column `plot_w`) gets NO glyph — it is unrepresentable
+///   in the cell grid, so its value survives only as a right-aligned LABEL.
+/// - Interior labels thin via the greedy `place_x_labels` rule while every tick
+///   mark stays. The right domain-edge label is placed right-aligned at the row
+///   end, DROPPED when it would collide (1-column gap) with the last survivor.
+/// - Bars tile contiguously (integer-cell edges) — no gap, overlap, or overflow.
+/// - Empty bins under `count` render a zero bar (no rect) while their ticks stay.
+#[test]
+fn histogram_gallery() {
+    // A bell-ish latency distribution, automatic bins: 10 nice bins over
+    // [0, 100] (step 10), counts 1·2·5·8·10·8·5·3·1·1 — a clean rise and fall.
+    // The right domain edge "100" places right-aligned with a two-column gap.
+    let bell = parse(
+        r#"{"data":{"values":[
+              {"latency_ms":5},
+              {"latency_ms":12},{"latency_ms":17},
+              {"latency_ms":22},{"latency_ms":24},{"latency_ms":27},{"latency_ms":29},{"latency_ms":25},
+              {"latency_ms":31},{"latency_ms":33},{"latency_ms":34},{"latency_ms":36},{"latency_ms":37},
+              {"latency_ms":38},{"latency_ms":39},{"latency_ms":32},
+              {"latency_ms":41},{"latency_ms":42},{"latency_ms":43},{"latency_ms":44},{"latency_ms":45},
+              {"latency_ms":46},{"latency_ms":47},{"latency_ms":48},{"latency_ms":49},{"latency_ms":40},
+              {"latency_ms":51},{"latency_ms":53},{"latency_ms":54},{"latency_ms":56},{"latency_ms":57},
+              {"latency_ms":58},{"latency_ms":52},{"latency_ms":55},
+              {"latency_ms":61},{"latency_ms":63},{"latency_ms":65},{"latency_ms":67},{"latency_ms":68},
+              {"latency_ms":72},{"latency_ms":75},{"latency_ms":78},
+              {"latency_ms":85},
+              {"latency_ms":95}]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"latency_ms","bin":true},
+                      "y":{"field":"latency_ms","aggregate":"count"}}}"#,
+    );
+    snap("histogram_bell", &bell, &opts(60, 8));
+
+    // A right-skewed distribution, automatic bins: 9 bins over [0, 180] (step
+    // 20) with a heavy head (11·5) and a far tail (3·2), leaving a run of FIVE
+    // empty bins ([40, 140)). The empty run reads as a wide gap in the
+    // silhouette while its five interior ticks stay put — the design's
+    // empty-bin-run guarantee under `count`.
+    let skewed = parse(
+        r#"{"data":{"values":[
+              {"latency_ms":3},{"latency_ms":5},{"latency_ms":6},{"latency_ms":8},{"latency_ms":9},
+              {"latency_ms":11},{"latency_ms":13},{"latency_ms":15},{"latency_ms":17},{"latency_ms":18},
+              {"latency_ms":19},
+              {"latency_ms":21},{"latency_ms":24},{"latency_ms":28},{"latency_ms":33},{"latency_ms":36},
+              {"latency_ms":152},{"latency_ms":155},{"latency_ms":158},
+              {"latency_ms":163},{"latency_ms":167}]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"latency_ms","bin":true},
+                      "y":{"field":"latency_ms","aggregate":"count"}}}"#,
+    );
+    snap("histogram_skewed_empty_run", &skewed, &opts(60, 8));
+
+    // The worked latency case: caller-forced `step: 10`, so the bin width is
+    // verbatim — 12 bins over [0, 120]. Two quiet bins ([90, 110)) sit between
+    // the body and a slow-outlier pair (110–120 ms). Here the right domain edge
+    // "120" would COLLIDE with the last interior label "110", so it is dropped;
+    // `--meta` still reports domain [0, 120], the machine-readable backstop.
+    let step = parse(
+        r#"{"data":{"values":[
+              {"latency_ms":6},
+              {"latency_ms":13},{"latency_ms":16},{"latency_ms":18},
+              {"latency_ms":22},{"latency_ms":24},{"latency_ms":25},{"latency_ms":27},{"latency_ms":28},
+              {"latency_ms":29},
+              {"latency_ms":31},{"latency_ms":33},{"latency_ms":35},{"latency_ms":36},{"latency_ms":37},
+              {"latency_ms":38},{"latency_ms":39},
+              {"latency_ms":42},{"latency_ms":44},{"latency_ms":46},{"latency_ms":48},{"latency_ms":49},
+              {"latency_ms":52},{"latency_ms":55},{"latency_ms":58},
+              {"latency_ms":63},{"latency_ms":67},
+              {"latency_ms":74},
+              {"latency_ms":88},
+              {"latency_ms":112},{"latency_ms":118}]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"latency_ms","bin":{"step":10}},
+                      "y":{"field":"latency_ms","aggregate":"count"}}}"#,
+    );
+    snap("histogram_step_latency", &step, &opts(60, 8));
+
+    // Tick-alignment at three widths on ONE ramp dataset (auto bins always snap
+    // to [0, 100]). The width is the variable under test: 30 → 5 fat bins (step
+    // 20), 50 and 72 → 10 bins (step 10). At width 50 the last interior label
+    // "90" and the right-aligned "100" are separated by EXACTLY one column — the
+    // minimum legal gap, the design's "nearly meet" pin. Width 30 opens that gap
+    // to two columns; width 72 to three. A one-column-narrower width at 50 would
+    // collide and drop "100", so this pin is a knife-edge — deliberately.
+    let ramp = parse(
+        r#"{"data":{"values":[
+              {"ms":3},{"ms":15},
+              {"ms":22},{"ms":27},
+              {"ms":33},{"ms":38},
+              {"ms":42},{"ms":45},{"ms":48},
+              {"ms":52},{"ms":55},{"ms":58},
+              {"ms":61},{"ms":64},{"ms":66},{"ms":69},
+              {"ms":71},{"ms":73},{"ms":76},{"ms":78},
+              {"ms":81},{"ms":83},{"ms":85},{"ms":87},{"ms":89},
+              {"ms":91},{"ms":93},{"ms":95},{"ms":96},{"ms":97}]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"ms","bin":true},
+                      "y":{"field":"ms","aggregate":"count"}}}"#,
+    );
+    snap("histogram_ticks_w30", &ramp, &opts(30, 8));
+    snap("histogram_ticks_w50", &ramp, &opts(50, 8));
+    snap("histogram_ticks_w72", &ramp, &opts(72, 8));
+}

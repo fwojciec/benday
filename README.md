@@ -41,7 +41,8 @@ A strict subset of Vega-Lite:
   "mark": "bar" | "line" | "point" | "area",
   "encoding": {
     "x":      { "field": "...", "type"?: "quantitative" | "temporal" | "nominal" | "ordinal",
-                "timeUnit"?: "year"|"quarter"|"month"|"week"|"day"|"hour"|"minute" },  // buckets time
+                "timeUnit"?: "year"|"quarter"|"month"|"week"|"day"|"hour"|"minute",  // buckets time
+                "bin"?: true | { "maxbins": 15 } | { "step": 10 } },                 // bins quantitative x
     "y":      { "field": "...", "aggregate"?: "sum" | "mean" | "median" | "min" | "max" | "count" },
     "color"?: { "field": "..." }   // series split, or bar grouping
   },
@@ -81,6 +82,21 @@ echo '[{"ts":"2026-06-14T08:03:00"},{"ts":"2026-06-14T08:41:00"},{"ts":"2026-06-
 Timestamps without an offset read as UTC civil time; with `Z` or `±hh:mm` they
 normalize to UTC. Explicit `"type": "ordinal"` restores evenly-spaced dates.
 
+`bin` on a quantitative `x` draws a histogram — the distribution question a plain
+bar can't answer. benday picks nice bins automatically (`true`), or takes a
+ceiling (`{"maxbins": 15}`) or an exact width (`{"step": 10}`), counts the rows
+per bin, and tiles them as contiguous bars on a linear axis. `y` names the
+aggregate: `count` for a frequency histogram, or `mean`/`sum`/… per bin ("mean
+latency by payload-size bucket"). Bins are half-open `[edge, next)`; the final
+bin is closed, so the maximum value lands in it. Same rule as time: when SQL
+already bucketed the values, pass them as an ordinary bar; `bin` is for when
+there is no SQL in the loop.
+
+```sh
+echo '[{"latency_ms":8},{"latency_ms":23},{"latency_ms":25},{"latency_ms":41},{"latency_ms":52},{"latency_ms":118}]' \
+  | benday --spec '{"mark":"bar","encoding":{"x":{"field":"latency_ms","bin":{"step":10}},"y":{"field":"latency_ms","aggregate":"count"}}}'
+```
+
 ## Data on stdin
 
 With `--spec`/`--spec-file`, stdin carries the data, auto-detected between
@@ -118,13 +134,13 @@ live in `docs/plans/`.
 
 ## Status
 
-Works: bars (vertical, horizontal, grouped), line, point, area,
-multi-series legends, aggregation, temporal scales (calendar ticks,
+Works: bars (vertical, horizontal, grouped), histograms (`bin`), line, point,
+area, multi-series legends, aggregation, temporal scales (calendar ticks,
 `timeUnit` bucketing), type inference, three themes. Planned: stacked bars,
 value labels at bar ends, `benday schema` (JSON Schema output). Deliberately
 absent: a sort grammar — SQL owns sorting, and owns bucketing when it is
-there; benday owns time when SQL is absent. Negative bars are a hard error,
-not a silent miss.
+there; benday owns time and value binning when SQL is absent. Negative bars
+are a hard error, not a silent miss.
 
 Named for [Ben-Day dots](https://en.wikipedia.org/wiki/Ben_Day_process):
 images composed from a raster of small marks, which is what terminal cells

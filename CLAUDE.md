@@ -44,13 +44,15 @@ between them is the snapshotted regression contract.
   exist once each (constructors in `compile/mod.rs`); every error names the
   fix. Never silently ignore a spec field.
 - **SQL owns sorting; benday owns time and positional truth.** SQL still owns
-  sorting, and owns bucketing when it is present (`date_trunc`, `FORMAT_DATE`);
-  benday owns time when SQL is absent (`timeUnit` buckets) and owns true
-  calendar position ALWAYS — an ordinal axis spends equal width on every period
-  and hides the gaps, which is a lie layout must not tell. First-seen nominal
-  order still preserves `ORDER BY` — that IS the ranking. Still no sort grammar.
-  The reversal of the old "no temporal scales" doctrine is recorded in
-  `docs/plans/2026-07-05-temporal-family-design.md`.
+  sorting, and owns bucketing when it is present (`date_trunc`, `FORMAT_DATE`,
+  value bucketing like `width_bucket`); benday buckets when SQL is absent —
+  `timeUnit` for time, `bin` for values — and owns true calendar position
+  ALWAYS — an ordinal axis spends equal width on every period and hides the
+  gaps, which is a lie layout must not tell. First-seen nominal order still
+  preserves `ORDER BY` — that IS the ranking. Still no sort grammar. The
+  reversal of the old "no temporal scales" doctrine is recorded in
+  `docs/plans/2026-07-05-temporal-family-design.md`; the `bin` value-bucketing
+  design in `docs/plans/2026-07-05-histograms-design.md`.
 - **House style**: braille dots are the default for every mark — don't flip
   defaults to blocks/octants. Themes are named after print processes;
   gradients in OKLCH.

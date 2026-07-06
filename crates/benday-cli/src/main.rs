@@ -14,6 +14,7 @@ const EXAMPLES: &str = r#"Examples:
   query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"quarter"},"y":{"field":"n"},"color":{"field":"direction"}}}'   # grouped bars
   query ... | benday --spec '{"mark":"line","encoding":{"x":{"field":"month"},"y":{"field":"mrr"}}}'   # DATE column -> calendar x; a year-plus of monthly rows picks quarter ticks
   echo '[{"ts":"2026-06-14T08:03:00"},{"ts":"2026-06-14T10:12:00"}]' | benday --spec '{"mark":"bar","encoding":{"x":{"field":"ts","timeUnit":"hour"},"y":{"field":"ts","aggregate":"count"}}}'   # raw log times -> hourly counts
+  query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"latency_ms","bin":{"step":10}},"y":{"field":"latency_ms","aggregate":"count"}}}'   # histogram: 10ms latency bins
 
 Spec (a strict Vega-Lite subset):
   { "data"?: { "values": [ {..row..}, ... ] },        // optional; omit to pipe rows on stdin
@@ -21,7 +22,8 @@ Spec (a strict Vega-Lite subset):
     "mark": "bar" | "line" | "point" | "area",
     "encoding": {
       "x": { "field": str, "type"?: "quantitative"|"temporal"|"nominal"|"ordinal",
-             "timeUnit"?: "year"|"quarter"|"month"|"week"|"day"|"hour"|"minute" },
+             "timeUnit"?: "year"|"quarter"|"month"|"week"|"day"|"hour"|"minute",
+             "bin"?: true | {"maxbins":int} | {"step":num} },
       "y": { "field": str, "aggregate"?: "sum"|"mean"|"median"|"min"|"max"|"count" },
       "color"?: { "field": str }
     },
@@ -53,6 +55,15 @@ Time (temporal x): line/point/area place values at true calendar positions, so
   Values WITHOUT an offset read as UTC civil time; values WITH one normalize to
   UTC. A column mixing the two compares correctly only if its naive values are
   really UTC — benday cannot know, so the convention is documented, not guessed.
+
+Histograms (bin on quantitative x): the distribution question a plain bar can't
+  answer. Three shapes: "bin":true picks nice bins automatically; {"maxbins":N}
+  caps the count at N; {"step":w} forces an exact bin width w. "y" carries the
+  aggregate — "count" for a frequency histogram, or mean/sum/... per bin ("mean
+  latency by size bucket"). Bins are half-open [edge, next); the FINAL bin is
+  closed, so a value equal to the domain max lands in it. When SQL already
+  bucketed the values, pass an ordinary bar; bin is for when SQL is absent.
+    query ... | benday --spec '{"mark":"bar","encoding":{"x":{"field":"latency_ms","bin":{"step":10}},"y":{"field":"latency_ms","aggregate":"count"}}}'   # 10ms latency bins
 
 Stdin: with --spec/--spec-file, stdin carries the data (a columnar envelope
   {"columns":[..],"rows":[[..]]} — extra keys ignored — or a JSON array of row
