@@ -375,8 +375,10 @@ fn temporal_family_gallery() {
 /// Histograms: a quantitative `x` with `bin` renders as contiguous rects on a
 /// linear, edge-ticked value axis. Every case pins an explicit size — the axis
 /// idiom is width-dependent, so the width is load-bearing. These are also the
-/// FIRST gallery snapshots of the histogram `meta` arm (task 4 pinned it in a
-/// unit test); the bundled meta carries the `bin` block (step / domain / bins).
+/// only snapshot referee of the histogram `meta` arm, which is otherwise pinned
+/// by a single unit test (`histogram_meta_reports_bin_layout` in
+/// `compile/mod.rs`); the bundled meta carries the `bin` block
+/// (step / domain / bins).
 ///
 /// The axis rules under test on every rendered row:
 /// - Tick glyphs (`┴`) sit at the LEFT cell edge of each bin, `k = 0..n-1`; the
@@ -482,4 +484,28 @@ fn histogram_gallery() {
     snap("histogram_ticks_w30", &ramp, &opts(30, 8));
     snap("histogram_ticks_w50", &ramp, &opts(50, 8));
     snap("histogram_ticks_w72", &ramp, &opts(72, 8));
+
+    // Interior-label THINNING: the same ramp rows, caller-forced `step: 10` at
+    // width 20 — 10 bins on a 20-cell plot, a label anchor every 2 columns.
+    // The greedy `place_x_labels` rule keeps every other label (0 · 20 · 40 ·
+    // 60 · 80) while ALL TEN tick glyphs stay at k = 0..9, and the right
+    // domain label "100" is dropped — it would abut "80" with no separating
+    // column (the 1-column gap rule). Fewer labels than ticks is the pin:
+    // label thinning must never thin the ticks.
+    let thinned = parse(
+        r#"{"data":{"values":[
+              {"ms":3},{"ms":15},
+              {"ms":22},{"ms":27},
+              {"ms":33},{"ms":38},
+              {"ms":42},{"ms":45},{"ms":48},
+              {"ms":52},{"ms":55},{"ms":58},
+              {"ms":61},{"ms":64},{"ms":66},{"ms":69},
+              {"ms":71},{"ms":73},{"ms":76},{"ms":78},
+              {"ms":81},{"ms":83},{"ms":85},{"ms":87},{"ms":89},
+              {"ms":91},{"ms":93},{"ms":95},{"ms":96},{"ms":97}]},
+          "mark":"bar",
+          "encoding":{"x":{"field":"ms","bin":{"step":10}},
+                      "y":{"field":"ms","aggregate":"count"}}}"#,
+    );
+    snap("histogram_ticks_thinned", &thinned, &opts(20, 8));
 }

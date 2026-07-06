@@ -45,8 +45,8 @@ between them is the snapshotted regression contract.
   fix. Never silently ignore a spec field.
 - **SQL owns sorting; benday owns time and positional truth.** SQL still owns
   sorting, and owns bucketing when it is present (`date_trunc`, `FORMAT_DATE`,
-  value bucketing like `width_bucket`); benday buckets when SQL is absent —
-  `timeUnit` for time, `bin` for values — and owns true calendar position
+  value bucketing like `width_bucket`); benday buckets when SQL is absent
+  (`timeUnit` for time, `bin` for values) and owns true calendar position
   ALWAYS — an ordinal axis spends equal width on every period and hides the
   gaps, which is a lie layout must not tell. First-seen nominal order still
   preserves `ORDER BY` — that IS the ranking. Still no sort grammar. The
