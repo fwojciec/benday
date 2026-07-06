@@ -191,62 +191,76 @@ impl Scene {
         let size = json!({ "columns": self.size.columns, "rows": self.size.rows });
         let mut meta = match self.source.mark {
             Mark::Bar => {
-                // Orientation is append-only and conditional: a VERTICAL bar
-                // reports the pre-existing shape byte-identically (no "direction"
-                // key). A HORIZONTAL bar has no x categories (its x is the
-                // quantitative value axis) — that's the detector — so it reports
-                // x as quantitative-with-domain, y as nominal-with-categories,
-                // plus a "direction" key.
-                let mut base = if self.x_axis.categories.is_none() {
-                    // RAW names, not the truncated tick labels: meta is the
-                    // machine-readable surface a caller matches back to rows.
-                    let cats = self
-                        .y_axis
-                        .categories
-                        .as_ref()
-                        .expect("horizontal bar scenes carry raw y categories");
-                    json!({
-                        "mark": "bar",
-                        "direction": "horizontal",
-                        "x": {
+                // Orientation keys on the mark's explicit `direction`, NOT on
+                // x-category presence: a histogram's vertical bar carries a
+                // domain-valued x (categories None) exactly like a horizontal
+                // bar's, so category presence can no longer tell them apart.
+                // A HORIZONTAL bar reports x as quantitative-with-domain, y as
+                // nominal-with-categories, plus a "direction" key; a VERTICAL
+                // nominal/timeUnit bar keeps the pre-existing shape
+                // byte-identically (no "direction" key).
+                let direction = self
+                    .marks
+                    .iter()
+                    .find_map(|m| match m {
+                        SceneMark::Bars { direction, .. } => Some(*direction),
+                        _ => None,
+                    })
+                    .expect("bar scenes carry exactly one Bars mark");
+                let mut base = match direction {
+                    BarDirection::Horizontal => {
+                        // RAW names, not the truncated tick labels: meta is the
+                        // machine-readable surface a caller matches back to rows.
+                        let cats = self
+                            .y_axis
+                            .categories
+                            .as_ref()
+                            .expect("horizontal bar scenes carry raw y categories");
+                        json!({
+                            "mark": "bar",
+                            "direction": "horizontal",
+                            "x": {
+                                "field": self.source.x_field,
+                                "type": "quantitative",
+                                "aggregate": self.source.aggregate,
+                                "domain": self.x_axis.domain,
+                            },
+                            "y": {
+                                "field": self.source.y_field,
+                                "type": "nominal",
+                                "categories": cats,
+                            },
+                            "dropped_rows": self.dropped_rows,
+                            "size": size,
+                        })
+                    }
+                    BarDirection::Vertical if self.x_axis.categories.is_some() => {
+                        // A `timeUnit` bar reports its buckets as the (canonical-key)
+                        // categories plus a "timeUnit" tag and a "temporal" type — a
+                        // plain bar keeps the byte-identical nominal shape.
+                        let mut x = json!({
                             "field": self.source.x_field,
-                            "type": "quantitative",
-                            "aggregate": self.source.aggregate,
-                            "domain": self.x_axis.domain,
-                        },
+                            "type": "nominal",
+                            "categories": self.x_axis.categories,
+                        });
+                        if let Some(tu) = self.source.time_unit {
+                            let x = x.as_object_mut().expect("x meta is an object");
+                            x.insert("type".to_string(), json!("temporal"));
+                            x.insert("timeUnit".to_string(), json!(tu));
+                        }
+                        json!({
+                        "mark": "bar",
+                        "x": x,
                         "y": {
                             "field": self.source.y_field,
-                            "type": "nominal",
-                            "categories": cats,
+                            "aggregate": self.source.aggregate,
+                            "domain": self.y_axis.domain,
                         },
                         "dropped_rows": self.dropped_rows,
                         "size": size,
-                    })
-                } else {
-                    // A `timeUnit` bar reports its buckets as the (canonical-key)
-                    // categories plus a "timeUnit" tag and a "temporal" type — a
-                    // plain bar keeps the byte-identical nominal shape.
-                    let mut x = json!({
-                        "field": self.source.x_field,
-                        "type": "nominal",
-                        "categories": self.x_axis.categories,
-                    });
-                    if let Some(tu) = self.source.time_unit {
-                        let x = x.as_object_mut().expect("x meta is an object");
-                        x.insert("type".to_string(), json!("temporal"));
-                        x.insert("timeUnit".to_string(), json!(tu));
+                        })
                     }
-                    json!({
-                    "mark": "bar",
-                    "x": x,
-                    "y": {
-                        "field": self.source.y_field,
-                        "aggregate": self.source.aggregate,
-                        "domain": self.y_axis.domain,
-                    },
-                    "dropped_rows": self.dropped_rows,
-                    "size": size,
-                    })
+                    BarDirection::Vertical => unreachable!("histogram meta lands in task 4"),
                 };
                 // Grouped bars carry a legend; append the xy-shaped series array
                 // (name/color/cell-count) from the legend entries zipped with the
