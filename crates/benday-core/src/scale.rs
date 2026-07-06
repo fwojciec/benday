@@ -157,7 +157,9 @@ impl Bins {
     }
 
     /// Half-open `[edge, next)`; the final bin is closed so `x == hi` lands in
-    /// it rather than falling off the top.
+    /// it rather than falling off the top. Edge exactness holds only when
+    /// `step` is exactly representable (auto/maxbins steps always are; a
+    /// caller-forced step may not be).
     pub fn index(&self, x: f64) -> usize {
         let k = ((x - self.lo) / self.step).floor();
         if k <= 0.0 {
@@ -171,6 +173,8 @@ impl Bins {
 }
 
 /// Snap `[min, max]` outward to whole multiples of `step` and count the bins.
+/// `n` is clamped to at least 1: a non-finite input slips past the guards
+/// (NaN casts to 0), and n = 0 would underflow `index()`'s `n - 1` in release.
 #[allow(dead_code)]
 fn expand(min: f64, max: f64, step: f64) -> Bins {
     let lo = (min / step).floor() * step;
@@ -178,7 +182,7 @@ fn expand(min: f64, max: f64, step: f64) -> Bins {
     Bins {
         lo,
         step,
-        n: ((hi - lo) / step).round() as usize,
+        n: (((hi - lo) / step).round() as usize).max(1),
     }
 }
 
@@ -473,6 +477,9 @@ mod tests {
         // the final bin is closed: hi is bin n-1, not bin n
         assert_eq!(b.index(100.0), 9);
         assert_eq!(b.index(99.999), 9);
+        // out-of-range values clamp to the outermost bins
+        assert_eq!(b.index(-5.0), 0);
+        assert_eq!(b.index(150.0), b.n - 1);
     }
 
     #[test]
